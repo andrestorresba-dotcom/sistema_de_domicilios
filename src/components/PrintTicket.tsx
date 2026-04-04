@@ -1,4 +1,4 @@
-import { Order } from '../lib/orderStore';
+import { Order, getFormattedDate, getFormattedTime, formatCurrency } from '../lib/orderStore';
 
 interface PrintTicketProps {
   order: Order;
@@ -15,7 +15,7 @@ export function PrintTicket({ order }: PrintTicketProps) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Ticket #${order.orderNumber}</title>
+          <title>Ticket #${order.orderNumber ?? order.id}</title>
           <style>
             @media print {
               @page { margin: 0; }
@@ -130,11 +130,11 @@ export function PrintTicket({ order }: PrintTicketProps) {
           <div class="order-info">
             <div class="info-row">
               <span class="label">Pedido:</span>
-              <span>#${order.orderNumber}</span>
+              <span>#${order.orderNumber ?? order.id}</span>
             </div>
             <div class="info-row">
               <span class="label">Fecha:</span>
-              <span>${order.createdAt.toLocaleDateString('es-CO')} ${order.createdAt.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>${getFormattedDate(order.createdAt)} ${getFormattedTime(order.createdAt)}</span>
             </div>
             <div class="info-row">
               <span class="label">Estado:</span>
@@ -184,7 +184,7 @@ export function PrintTicket({ order }: PrintTicketProps) {
             </div>
             <div class="total-row">
               <span>Domicilio:</span>
-              <span>$${order.deliveryFee.toLocaleString()}</span>
+              <span>$${formatCurrency(order.deliveryFee)}</span>
             </div>
             <div class="total-row total-final">
               <span>TOTAL:</span>

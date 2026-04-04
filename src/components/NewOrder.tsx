@@ -1,343 +1,187 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router';
-import { orderStore, OrderItem, PaymentMethod } from '../lib/orderStore';
-import { zones } from '../lib/zones';
-import { Plus, Trash2, Upload, CheckCircle } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { createOrder } from '../lib/orderStore';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Card } from './ui/card';
+import { Trash2, Plus, MapPin, CreditCard, ShoppingBasket, MessageSquare } from 'lucide-react';
+
+const ZONAS = [
+  { id: 'centro', nombre: 'Centro', precio: 5000 },
+  { id: 'centro lejos', nombre: 'Centro lejos', precio: 6000 },
+  { id: 'sur lejos', nombre: 'Sur lejos', precio: 6000 },
+  { id: 'sur cerca', nombre: 'Sur cerca', precio: 5000 },
+  { id: 'norte', nombre: 'Norte', precio: 7000 },
+  { id: 'norte cerca', nombre: 'Norte cerca', precio: 6000 },
+  { id: 'norte lejos', nombre: 'Norte lejos', precio: 8000 },
+  { id: 'oriente', nombre: 'Oriente', precio: 6000 },
+  { id: 'oriente lejos', nombre: 'Oriente lejos', precio: 8000 },
+  { id: 'palermo', nombre: 'Palermo', precio: 10000 },
+];
 
 export function NewOrder() {
   const navigate = useNavigate();
-  const [customerName, setCustomerName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [selectedZone, setSelectedZone] = useState('Centro');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [observations, setObservations] = useState('');
-  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
-  const [items, setItems] = useState<OrderItem[]>([
-    { name: '', quantity: 1, price: 0 }
-  ]);
+  const [loading, setLoading] = useState(false);
+  
+  // ESTADOS: La clave del tiempo real
+  const [zona, setZona] = useState(ZONAS[0]);
+  const [metodoPago, setMetodoPago] = useState<'cash' | 'transfer'>('cash');
+  const [items, setItems] = useState([{ name: '', quantity: 1, price: 0 }]);
+  const [cliente, setCliente] = useState({ nombre: '', direccion: '', tel: '', notas: '' });
 
-  const deliveryFee = zones.find(z => z.name === selectedZone)?.fee || 0;
-  const subtotal = items.reduce((sum, item) => sum + item.price, 0);
-  const total = subtotal + deliveryFee;
+  // CÁLCULO EN TIEMPO REAL (useMemo para eficiencia)
+  const { subtotal, total } = useMemo(() => {
+    const sub = items.reduce((acc, item) => acc + (item.quantity * item.price), 0);
+    return { subtotal: sub, total: sub + zona.precio };
+  }, [items, zona]);
 
-  const addItem = () => {
-    setItems([...items, { name: '', quantity: 1, price: 0 }]);
-  };
-
-  const removeItem = (index: number) => {
-    if (items.length > 1) {
-      setItems(items.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateItem = (index: number, field: keyof OrderItem, value: string | number) => {
+  const updateItem = (index: number, field: string, value: any) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
     setItems(newItems);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!customerName || !phone || !address) {
-      alert('Por favor complete todos los campos requeridos');
-      return;
-    }
-
-    const validItems = items.filter(item => item.name.trim() !== '' && item.price > 0);
-    if (validItems.length === 0) {
-      alert('Agregue al menos un producto al pedido');
-      return;
-    }
-
-    orderStore.addOrder({
-      customerName,
-      phone,
-      address,
-      items: validItems,
-      deliveryFee,
-      total,
-      paymentMethod,
-      status: 'pending',
-      observations,
-      zone: selectedZone,
-      paymentProofFile: paymentProofFile || undefined
-    });
-
-    alert('Pedido creado exitosamente');
-    navigate('/');
+  const handleQuickAdd = (name: string, price: number) => {
+    setItems([...items, { name, quantity: 1, price }]);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPaymentProofFile(file);
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (subtotal === 0) return alert("Agrega al menos un producto");
+    setLoading(true);
+    try {
+      await createOrder({
+        customerName: cliente.nombre,
+        address: cliente.direccion,
+        phone: cliente.tel,
+        items,
+        zone: zona.nombre,
+        deliveryFee: zona.precio,
+        total,
+        paymentMethod: metodoPago,
+        observations: cliente.notas,
+        status: 'pending'
+      });
+      navigate('/');
+    } catch (error) {
+      console.error(error);
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div className="mb-6">
-        <h2 className="font-bold text-gray-900">Nuevo Pedido</h2>
-        <p className="text-sm text-gray-600">Registre un nuevo pedido manualmente</p>
-      </div>
+    <div className="max-w-xl mx-auto px-4 py-8 space-y-8 bg-slate-50 min-h-screen">
+      
+      {/* 1. INFO CLIENTE */}
+      <section className="space-y-4">
+        <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+          <MapPin className="text-amber-500 w-5 h-5" /> Datos de Envío
+        </h2>
+        <Card className="p-5 border-none shadow-sm space-y-3">
+          <Input placeholder="Nombre del cliente" value={cliente.nombre} onChange={e => setCliente({...cliente, nombre: e.target.value})} className="bg-slate-50 border-none h-12 text-lg" />
+          <Input placeholder="Dirección completa" value={cliente.direccion} onChange={e => setCliente({...cliente, direccion: e.target.value})} className="bg-slate-50 border-none h-12" />
+          <Input placeholder="Teléfono" type="tel" value={cliente.tel} onChange={e => setCliente({...cliente, tel: e.target.value})} className="bg-slate-50 border-none h-12" />
+        </Card>
+      </section>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Customer Information */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Información del Cliente</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nombre del Cliente *
-              </label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                placeholder="Ej: María González"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Teléfono *
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                placeholder="Ej: 3001234567"
-                required
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dirección *
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                placeholder="Ej: Calle 45 #23-10, Barrio Centro"
-                required
-              />
-            </div>
+      {/* 2. PRODUCTOS ELEGANTES */}
+      <section className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+            <ShoppingBasket className="text-amber-500 w-5 h-5" /> Pedido
+          </h2>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => handleQuickAdd('Pollo Entero', 32000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ Pollo Asado</button>
+            <button type="button" onClick={() => handleQuickAdd('Medio Pollo', 17000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ Medio Asado</button>
+            <button type="button" onClick={() => handleQuickAdd('Promoción', 42000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ Promoción</button>
+             <button type="button" onClick={() => handleQuickAdd('1/4 Pollo', 12000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ 1/4 Asado</button>
           </div>
         </div>
 
-        {/* Order Items */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Productos del Pedido</h3>
-            <button
-              type="button"
-              onClick={addItem}
-              className="flex items-center gap-2 bg-amber-400 hover:bg-amber-500 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Agregar Producto
-            </button>
-          </div>
-          <div className="space-y-3">
-            {items.map((item, index) => (
-              <div key={index} className="flex gap-3 items-start">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={item.name}
-                    onChange={(e) => updateItem(index, 'name', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                    placeholder="Nombre del producto"
-                  />
+        <div className="space-y-3">
+          {items.map((item, idx) => (
+            <Card key={idx} className="p-4 border-none shadow-sm flex items-center gap-3">
+              <div className="flex-1 space-y-1">
+                <input value={item.name} onChange={e => updateItem(idx, 'name', e.target.value)} placeholder="Producto" className="w-full font-bold bg-transparent outline-none" />
+                <div className="flex text-sm text-slate-400 gap-2">
+                  <span>Cant:</span>
+                  <input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', parseInt(e.target.value))} className="w-12 bg-slate-100 rounded px-1 text-slate-900" />
+                  <span>Precio:</span>
+                  <input type="number" value={item.price} onChange={e => updateItem(idx, 'price', parseFloat(e.target.value))} className="w-20 bg-slate-100 rounded px-1 text-slate-900" />
                 </div>
-                <div className="w-24">
-                  <input
-                    type="number"
-                    value={item.quantity}
-                    onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                    placeholder="Cant."
-                    min="1"
-                  />
-                </div>
-                <div className="w-32">
-                  <input
-                    type="number"
-                    value={item.price || ''}
-                    onChange={(e) => updateItem(index, 'price', parseInt(e.target.value) || 0)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                    placeholder="Precio"
-                    min="0"
-                  />
-                </div>
-                {items.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeItem(index)}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                )}
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Delivery Zone */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Zona de Domicilio</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {zones.map(zone => (
-              <button
-                key={zone.name}
-                type="button"
-                onClick={() => setSelectedZone(zone.name)}
-                className={`px-4 py-3 rounded-lg border-2 transition-colors ${
-                  selectedZone === zone.name
-                    ? 'border-amber-400 bg-amber-50 text-gray-900'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="text-sm font-medium">{zone.name}</div>
-                <div className="text-xs text-gray-600">${zone.fee.toLocaleString()}</div>
+              <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-red-500 transition-colors">
+                <Trash2 size={18} />
               </button>
-            ))}
-          </div>
+            </Card>
+          ))}
+          <Button type="button" variant="ghost" onClick={() => handleQuickAdd('', 0)} className="w-full border-2 border-dashed border-slate-200 text-slate-400 h-14">
+            + Agregar otro producto
+          </Button>
         </div>
+      </section>
 
-        {/* Payment Method */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Método de Pago</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* 3. ZONAS (BOTONES GRANDES) */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Zona de Domicilio</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {ZONAS.map(z => (
             <button
+              key={z.id}
               type="button"
-              onClick={() => setPaymentMethod('cash')}
-              className={`px-6 py-4 rounded-lg border-2 transition-colors ${
-                paymentMethod === 'cash'
-                  ? 'border-amber-400 bg-amber-50 text-gray-900'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
+              onClick={() => setZona(z)}
+              className={`p-4 rounded-2xl border-2 text-left transition-all ${zona.id === z.id ? 'border-amber-500 bg-amber-50 shadow-md shadow-amber-100' : 'border-white bg-white text-slate-400 shadow-sm'}`}
             >
-              <div className="font-semibold">Efectivo</div>
-              <div className="text-sm text-gray-600">Pago contra entrega</div>
+              <div className={`font-bold ${zona.id === z.id ? 'text-amber-900' : 'text-slate-600'}`}>{z.nombre}</div>
+              <div className="text-xs opacity-60">${z.precio.toLocaleString()}</div>
             </button>
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('transfer')}
-              className={`px-6 py-4 rounded-lg border-2 transition-colors ${
-                paymentMethod === 'transfer'
-                  ? 'border-amber-400 bg-amber-50 text-gray-900'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="font-semibold">Transferencia</div>
-              <div className="text-sm text-gray-600">Nequi / Bancolombia</div>
-            </button>
-          </div>
-
-          {paymentMethod === 'transfer' && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-3">Datos para Transferencia</h4>
-              <div className="space-y-1.5 text-sm text-gray-700 bg-white p-3 rounded-lg">
-                <p className="flex justify-between"><strong>Nequi:</strong> <span className="font-mono">3012714822</span></p>
-                <p className="flex justify-between"><strong>Cuenta Bancolombia:</strong> <span className="font-mono">941-22465921</span></p>
-                <p className="flex justify-between"><strong>Daviplata:</strong> <span className="font-mono">3118020331</span></p>
-              </div>
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Subir Comprobante (opcional)
-                </label>
-                <input
-                  type="file"
-                  id="paymentProof"
-                  accept="image/*,.pdf"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="paymentProof"
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm cursor-pointer"
-                >
-                  {paymentProofFile ? (
-                    <>
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span className="text-green-600">{paymentProofFile.name}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      Seleccionar Archivo
-                    </>
-                  )}
-                </label>
-                {paymentProofFile && (
-                  <button
-                    type="button"
-                    onClick={() => setPaymentProofFile(null)}
-                    className="mt-2 text-xs text-red-600 hover:text-red-700"
-                  >
-                    Eliminar archivo
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+          ))}
         </div>
+      </section>
 
-        {/* Observations */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Observaciones</h3>
-          <textarea
-            value={observations}
-            onChange={(e) => setObservations(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-            placeholder="Ej: Sin cebolla, tocar timbre, etc."
-            rows={3}
-          />
-        </div>
-
-        {/* Total Summary */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Resumen del Pedido</h3>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Subtotal</span>
-              <span className="font-medium text-gray-900">${subtotal.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Domicilio ({selectedZone})</span>
-              <span className="font-medium text-gray-900">${deliveryFee.toLocaleString()}</span>
-            </div>
-            <div className="border-t border-gray-200 pt-2 flex justify-between">
-              <span className="font-bold text-gray-900">Total</span>
-              <span className="font-bold text-amber-600">${total.toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Submit Button */}
-        <div className="flex gap-3">
+      {/* 4. MÉTODO DE PAGO */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Método de Pago</h2>
+        <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={() => navigate('/')}
-            className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-900 font-medium py-3 px-6 rounded-lg transition-colors"
+            onClick={() => setMetodoPago('cash')}
+            className={`p-4 rounded-2xl border-2 transition-all ${metodoPago === 'cash' ? 'border-amber-500 bg-amber-50 shadow-md shadow-amber-100 text-amber-900' : 'border-white bg-white text-slate-500 shadow-sm'}`}
           >
-            Cancelar
+            Efectivo
           </button>
           <button
-            type="submit"
-            className="flex-1 bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold py-3 px-6 rounded-lg transition-colors"
+            type="button"
+            onClick={() => setMetodoPago('transfer')}
+            className={`p-4 rounded-2xl border-2 transition-all ${metodoPago === 'transfer' ? 'border-amber-500 bg-amber-50 shadow-md shadow-amber-100 text-amber-900' : 'border-white bg-white text-slate-500 shadow-sm'}`}
           >
-            Crear Pedido
+            Transferencia
           </button>
         </div>
-      </form>
+      </section>
+
+      {/* 4. TOTAL FLOTANTE / RESUMEN */}
+      <section className="bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl space-y-4">
+        <div className="flex justify-between text-slate-400 text-sm">
+          <span>Subtotal</span>
+          <span>${subtotal.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between text-slate-400 text-sm">
+          <span>Domicilio ({zona.nombre})</span>
+          <span>${zona.precio.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between items-center pt-2">
+          <span className="text-xl font-bold">Total a Cobrar</span>
+          <span className="text-3xl font-black text-amber-400">${total.toLocaleString()}</span>
+        </div>
+        
+        <Button 
+          onClick={handleSubmit} 
+          disabled={loading}
+          className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-black h-16 rounded-2xl text-xl shadow-lg shadow-amber-900/20"
+        >
+          {loading ? 'GUARDANDO...' : 'CONFIRMAR PEDIDO'}
+        </Button>
+      </section>
     </div>
   );
 }

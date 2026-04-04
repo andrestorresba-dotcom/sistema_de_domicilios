@@ -1,5 +1,5 @@
 import { useOrders } from '../lib/hooks';
-import { orderStore } from '../lib/orderStore';
+import { orderStore, getFormattedTime } from '../lib/orderStore';
 import { ChefHat, Check, Truck } from 'lucide-react';
 import { PrintTicket } from './PrintTicket';
 import { useState } from 'react';
@@ -53,10 +53,10 @@ export function KitchenView() {
               <div className="bg-amber-400 px-6 py-4">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-gray-900">
-                    PEDIDO #{order.orderNumber}
+                    PEDIDO #{order.orderNumber ?? order.id}
                   </span>
                   <span className="bg-gray-900 text-white px-3 py-1 rounded-full text-sm font-medium">
-                    {order.createdAt.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                    {getFormattedTime(order.createdAt)}
                   </span>
                 </div>
               </div>

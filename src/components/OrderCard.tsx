@@ -1,4 +1,4 @@
-import { Order, orderStore } from '../lib/orderStore';
+import { Order, orderStore, getFormattedTime } from '../lib/orderStore';
 import { MapPin, DollarSign, CreditCard, Clock, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -32,7 +32,7 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`¿Está seguro de eliminar el pedido #${order.orderNumber}?`)) {
+    if (confirm(`¿Está seguro de eliminar el pedido #${order.orderNumber ?? order.id}?`)) {
       orderStore.deleteOrder(order.id);
     }
   };
@@ -48,11 +48,11 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-amber-400 text-gray-900">
-          #{order.orderNumber}
+          #{order.orderNumber ?? order.id}
         </span>
         <span className="text-xs text-gray-500">
           <Clock className="w-3 h-3 inline mr-1" />
-          {order.createdAt.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+          {getFormattedTime(order.createdAt)}
         </span>
       </div>
 

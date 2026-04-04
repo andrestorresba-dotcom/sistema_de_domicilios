@@ -1,14 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useOrders } from '../lib/hooks';
-import { Order } from '../lib/orderStore';
+import { orderStore, Order, getFormattedTime, getFormattedDate, getDateFromTimestamp } from '../lib/orderStore';
 import { FileText, Search, Download, Filter } from 'lucide-react';
 
 export function OrdersReport() {
   const orders = useOrders();
   const [filter, setFilter] = useState<'today' | 'month' | 'all'>('today');
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [paymentUpdating, setPaymentUpdating] = useState(false);
 
   const filteredOrders = useMemo(() => {
+    const getCreatedAt = (order: Order) => getDateFromTimestamp(order.createdAt);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -17,9 +20,9 @@ export function OrdersReport() {
 
     // Filter by time period
     if (filter === 'today') {
-      filtered = orders.filter(o => o.createdAt >= today);
+      filtered = orders.filter(o => getCreatedAt(o) >= today);
     } else if (filter === 'month') {
-      filtered = orders.filter(o => o.createdAt >= thisMonth);
+      filtered = orders.filter(o => getCreatedAt(o) >= thisMonth);
     }
 
     // Filter by search term
@@ -27,11 +30,11 @@ export function OrdersReport() {
       filtered = filtered.filter(o => 
         o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         o.phone.includes(searchTerm) ||
-        o.orderNumber.toString().includes(searchTerm)
+        String(o.orderNumber ?? o.id).toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    return filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return filtered.sort((a, b) => getCreatedAt(b).getTime() - getCreatedAt(a).getTime());
   }, [orders, filter, searchTerm]);
 
   const getStatusLabel = (status: Order['status']) => {
@@ -57,8 +60,8 @@ export function OrdersReport() {
   const exportToCSV = () => {
     const headers = ['#', 'Fecha', 'Cliente', 'Teléfono', 'Dirección', 'Zona', 'Productos', 'Subtotal', 'Domicilio', 'Total', 'Pago', 'Estado', 'Domiciliario', 'Entregado'];
     const rows = filteredOrders.map(order => [
-      order.orderNumber,
-      order.createdAt.toLocaleString('es-CO'),
+      order.orderNumber ?? order.id,
+      getFormattedDate(order.createdAt) + ' ' + getFormattedTime(order.createdAt),
       order.customerName,
       order.phone,
       order.address,
@@ -70,7 +73,7 @@ export function OrdersReport() {
       order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia',
       getStatusLabel(order.status),
       order.deliveryPerson || 'N/A',
-      order.deliveredAt ? order.deliveredAt.toLocaleString('es-CO') : 'N/A'
+      order.deliveredAt ? getDateFromTimestamp(order.deliveredAt).toLocaleString('es-CO') : 'N/A'
     ]);
 
     const csvContent = [
@@ -110,7 +113,7 @@ export function OrdersReport() {
             >
               Hoy ({orders.filter(o => {
                 const today = new Date();
-                const orderDate = new Date(o.createdAt);
+                const orderDate = getDateFromTimestamp(o.createdAt);
                 return orderDate.toDateString() === today.toDateString();
               }).length})
             </button>
@@ -125,7 +128,7 @@ export function OrdersReport() {
               Este Mes ({orders.filter(o => {
                 const now = new Date();
                 const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                return o.createdAt >= thisMonth;
+                return getDateFromTimestamp(o.createdAt) >= thisMonth;
               }).length})
             </button>
             <button
@@ -211,13 +214,13 @@ export function OrdersReport() {
                   <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
-                        #{order.orderNumber}
+                        #{order.orderNumber ?? order.id}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="flex flex-col">
-                        <span className="font-medium">{order.createdAt.toLocaleDateString('es-CO')}</span>
-                        <span className="text-xs text-gray-500">{order.createdAt.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="font-medium">{getDateFromTimestamp(order.createdAt).toLocaleDateString('es-CO')}</span>
+                        <span className="text-xs text-gray-500">{getFormattedTime(order.createdAt)}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{order.customerName}</td>
@@ -240,9 +243,52 @@ export function OrdersReport() {
                       ${order.total.toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-gray-600">
-                        {order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
-                      </span>
+                      <div className="flex flex-col gap-2">
+                        <span className="text-xs text-gray-600">
+                          {order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPaymentId(editingPaymentId === order.id ? null : order.id)}
+                          className="text-xs text-amber-600 hover:text-amber-800 font-semibold"
+                        >
+                          Editar
+                        </button>
+                        {editingPaymentId === order.id && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={paymentUpdating}
+                              onClick={async () => {
+                                if (order.paymentMethod !== 'cash') {
+                                  setPaymentUpdating(true);
+                                  await orderStore.updatePaymentMethod(order.id, 'cash');
+                                  setEditingPaymentId(null);
+                                  setPaymentUpdating(false);
+                                }
+                              }}
+                              className={`text-[11px] px-2 py-1 rounded-full border ${order.paymentMethod === 'cash' ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}`}
+                            >
+                              Efectivo
+                            </button>
+                            <button
+                              type="button"
+                              disabled={paymentUpdating}
+                              onClick={async () => {
+                                if (order.paymentMethod !== 'transfer') {
+                                  setPaymentUpdating(true);
+                                  await orderStore.updatePaymentMethod(order.id, 'transfer');
+                                  setEditingPaymentId(null);
+                                  setPaymentUpdating(false);
+                                }
+                              }}
+                              className={`text-[11px] px-2 py-1 rounded-full border ${order.paymentMethod === 'transfer' ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}`}
+                            >
+                              Transferencia
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>

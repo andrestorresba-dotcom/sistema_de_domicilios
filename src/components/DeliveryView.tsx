@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useOrders } from '../lib/hooks';
-import { orderStore } from '../lib/orderStore';
+import { orderStore, formatCurrency } from '../lib/orderStore';
 import { Truck, MapPin, DollarSign, CreditCard, Search, CheckCircle } from 'lucide-react';
 
 export function DeliveryView() {
@@ -12,7 +12,7 @@ export function DeliveryView() {
   const filteredOrders = deliveryOrders.filter(order => {
     const query = searchQuery.toLowerCase();
     return (
-      order.orderNumber.toString().includes(query) ||
+      String(order.orderNumber ?? order.id).toLowerCase().includes(query) ||
       order.customerName.toLowerCase().includes(query) ||
       order.address.toLowerCase().includes(query)
     );
@@ -64,7 +64,7 @@ export function DeliveryView() {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="inline-flex items-center px-4 py-1.5 rounded-full text-base font-bold bg-amber-400 text-gray-900">
-                    #{order.orderNumber}
+                    #{order.orderNumber ?? order.id}
                   </span>
                   <h3 className="font-semibold text-gray-900">{order.customerName}</h3>
                 </div>
@@ -93,7 +93,7 @@ export function DeliveryView() {
                   <div className="flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-gray-400" />
                     <span className="text-sm text-gray-700">
-                      Domicilio: <span className="font-medium">${order.deliveryFee.toLocaleString()}</span>
+                      Domicilio: <span className="font-medium">${formatCurrency(order.deliveryFee)}</span>
                     </span>
                   </div>
                 </div>

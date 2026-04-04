@@ -1,5 +1,58 @@
+import { db } from './firebase'; // Importamos tu conexión
+import { 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  serverTimestamp,
+  updateDoc,
+  doc,
+  deleteDoc,
+  runTransaction
+} from 'firebase/firestore';
+
 export type OrderStatus = 'pending' | 'preparing' | 'in-route' | 'delivered';
-export type PaymentMethod = 'cash' | 'transfer';
+
+// Función helper para convertir timestamps de Firebase a Date
+export const getDateFromTimestamp = (timestamp: any): Date => {
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+  if (timestamp?.toDate && typeof timestamp.toDate === 'function') {
+    return timestamp.toDate();
+  }
+  if (timestamp) {
+    return new Date(timestamp);
+  }
+  return new Date();
+};
+
+// Función helper para obtener hora formateada
+export const getFormattedTime = (timestamp: any): string => {
+  try {
+    const date = getDateFromTimestamp(timestamp);
+    return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return 'Sin hora';
+  }
+};
+
+// Función helper para obtener fecha formateada
+export const getFormattedDate = (timestamp: any): string => {
+  try {
+    const date = getDateFromTimestamp(timestamp);
+    return date.toLocaleDateString('es-CO');
+  } catch {
+    return 'Sin fecha';
+  }
+};
+
+export const formatCurrency = (value: any): string => {
+  const amount = Number(value ?? 0);
+  if (Number.isNaN(amount)) return '0';
+  return amount.toLocaleString('es-CO');
+};
 
 export interface OrderItem {
   name: string;
@@ -9,184 +62,122 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  orderNumber: number;
-  customerName: string;
-  phone: string;
-  address: string;
-  items: OrderItem[];
-  deliveryFee: number;
-  total: number;
-  paymentMethod: PaymentMethod;
+  orderNumber?: number | string;
+  createdAt: Date | any;
   status: OrderStatus;
-  observations: string;
-  paymentProof?: string;
-  paymentProofFile?: File;
-  createdAt: Date;
-  deliveryPerson?: string;
-  deliveredAt?: Date;
-  zone?: string;
+  total: number;
+  paymentMethod: 'cash' | 'transfer';
+  items: OrderItem[];
+  [key: string]: any;
 }
 
-// Mock data
-const mockOrders: Order[] = [
-  {
-    id: '1',
-    orderNumber: 56,
-    customerName: 'María González',
-    phone: '3001234567',
-    address: 'Calle 45 #23-10, Barrio Centro',
-    items: [
-      { name: '1 Pollo Entero Asado', quantity: 1, price: 35000 },
-      { name: 'Gaseosa 1.5L', quantity: 1, price: 5000 }
-    ],
-    deliveryFee: 3000,
-    total: 43000,
-    paymentMethod: 'cash',
-    status: 'pending',
-    observations: 'Sin cebolla',
-    createdAt: new Date('2026-03-17T10:30:00')
-  },
-  {
-    id: '2',
-    orderNumber: 57,
-    customerName: 'Carlos Pérez',
-    phone: '3109876543',
-    address: 'Carrera 15 #67-89, Barrio Norte',
-    items: [
-      { name: 'Pollo Broaster (8 piezas)', quantity: 1, price: 28000 },
-      { name: 'Papas Fritas Grande', quantity: 1, price: 8000 }
-    ],
-    deliveryFee: 4000,
-    total: 40000,
-    paymentMethod: 'transfer',
-    status: 'preparing',
-    observations: '',
-    createdAt: new Date('2026-03-17T11:00:00')
-  },
-  {
-    id: '3',
-    orderNumber: 58,
-    customerName: 'Ana Martínez',
-    phone: '3201237890',
-    address: 'Avenida 30 #12-45, Barrio Sur',
-    items: [
-      { name: 'Almuerzo del Día', quantity: 2, price: 24000 },
-      { name: 'Jugo Natural', quantity: 2, price: 6000 }
-    ],
-    deliveryFee: 3500,
-    total: 33500,
-    paymentMethod: 'cash',
-    status: 'in-route',
-    observations: 'Tocar timbre',
-    createdAt: new Date('2026-03-17T11:15:00')
-  },
-  {
-    id: '4',
-    orderNumber: 59,
-    customerName: 'Jorge Ramírez',
-    phone: '3157894561',
-    address: 'Calle 78 #34-21, Barrio Este',
-    items: [
-      { name: '1/2 Pollo Asado', quantity: 2, price: 38000 }
-    ],
-    deliveryFee: 5000,
-    total: 43000,
-    paymentMethod: 'transfer',
-    status: 'delivered',
-    observations: '',
-    createdAt: new Date('2026-03-17T09:45:00')
-  },
-  {
-    id: '5',
-    orderNumber: 60,
-    customerName: 'Laura Sánchez',
-    phone: '3004567890',
-    address: 'Carrera 8 #90-12, Barrio Oeste',
-    items: [
-      { name: 'Pollo Broaster (12 piezas)', quantity: 1, price: 38000 },
-      { name: 'Gaseosa 2L', quantity: 1, price: 6000 }
-    ],
-    deliveryFee: 4500,
-    total: 48500,
-    paymentMethod: 'cash',
-    status: 'pending',
-    observations: 'Llamar al llegar',
-    createdAt: new Date('2026-03-17T11:30:00')
-  }
-];
+const collectionRef = collection(db, 'pedidos');
 
-class OrderStore {
-  private orders: Order[] = [...mockOrders];
-  private listeners: Set<() => void> = new Set();
-  private nextOrderNumber = 61;
+let ordersState: Order[] = [];
+const subscribers: Array<() => void> = [];
 
-  subscribe(listener: () => void) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  private notify() {
-    this.listeners.forEach(listener => listener());
-  }
-
+export const orderStore = {
   getOrders(): Order[] {
-    return this.orders;
-  }
-
-  getOrderById(id: string): Order | undefined {
-    return this.orders.find(order => order.id === id);
-  }
-
-  getOrderByNumber(orderNumber: number): Order | undefined {
-    return this.orders.find(order => order.orderNumber === orderNumber);
-  }
-
-  addOrder(orderData: Omit<Order, 'id' | 'orderNumber' | 'createdAt'>): Order {
-    const newOrder: Order = {
-      ...orderData,
-      id: Date.now().toString(),
-      orderNumber: this.nextOrderNumber++,
-      createdAt: new Date()
-    };
-    this.orders.unshift(newOrder);
-    this.notify();
-    return newOrder;
-  }
-
-  updateOrderStatus(id: string, status: OrderStatus) {
-    const order = this.orders.find(o => o.id === id);
-    if (order) {
-      order.status = status;
-      if (status === 'delivered') {
-        order.deliveredAt = new Date();
+    return ordersState;
+  },
+  setOrders(orders: Order[]): void {
+    ordersState = orders;
+    subscribers.forEach(callback => callback());
+  },
+  subscribe(callback: () => void): () => void {
+    subscribers.push(callback);
+    return () => {
+      const index = subscribers.indexOf(callback);
+      if (index > -1) {
+        subscribers.splice(index, 1);
       }
-      this.notify();
+    };
+  },
+  async updateOrderStatus(orderId: string, newStatus: string): Promise<void> {
+    try {
+      const orderRef = doc(db, 'pedidos', orderId);
+      await updateDoc(orderRef, { status: newStatus });
+    } catch (error) {
+      console.error("Error al actualizar estado del pedido:", error);
+    }
+  },
+  async updatePaymentMethod(orderId: string, paymentMethod: 'cash' | 'transfer'): Promise<void> {
+    try {
+      const orderRef = doc(db, 'pedidos', orderId);
+      await updateDoc(orderRef, { paymentMethod });
+    } catch (error) {
+      console.error("Error al actualizar método de pago:", error);
+    }
+  },
+  async setDeliveryPerson(orderId: string, deliveryPerson: string): Promise<void> {
+    try {
+      const orderRef = doc(db, 'pedidos', orderId);
+      await updateDoc(orderRef, { deliveryPerson });
+    } catch (error) {
+      console.error("Error al asignar domiciliario:", error);
+    }
+  },
+  async deleteOrder(orderId: string): Promise<void> {
+    try {
+      const orderRef = doc(db, 'pedidos', orderId);
+      await deleteDoc(orderRef);
+    } catch (error) {
+      console.error("Error al eliminar pedido:", error);
     }
   }
+};
 
-  updateOrder(id: string, updates: Partial<Order>) {
-    const index = this.orders.findIndex(o => o.id === id);
-    if (index !== -1) {
-      this.orders[index] = { ...this.orders[index], ...updates };
-      this.notify();
-    }
+// 1. ESCUCHAR PEDIDOS (Para que aparezcan en el Tablero automáticamente)
+export const subscribeToOrders = (setOrders: (orders: Order[]) => void) => {
+  const q = query(collectionRef, orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const ordersData: Order[] = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Order));
+    orderStore.setOrders(ordersData);
+    setOrders(ordersData);
+  });
+};
+
+// 2. CREAR NUEVO PEDIDO (Con consecutivo PED-0000)
+export const createOrder = async (order: Partial<Order>) => {
+  const counterRef = doc(db, 'config', 'counters');
+  
+  try {
+    await runTransaction(db, async (transaction) => {
+      const counterDoc = await transaction.get(counterRef);
+      
+      if (!counterDoc.exists()) {
+        throw new Error("El documento 'config/counters' no existe en Firestore.");
+      }
+
+      // 1. Obtener el número actual y sumar 1
+      const currentNumber = counterDoc.data().lastOrderNumber || 0;
+      const nextNumber = currentNumber + 1;
+
+      // 2. Formatear el ID (ej: PED-0001)
+      const formattedId = `PED-${nextNumber.toString().padStart(4, '0')}`;
+      
+      // 3. Crear la referencia del nuevo pedido con ese ID manual
+      const newOrderRef = doc(db, 'pedidos', formattedId);
+
+      // 4. Actualizar el contador en la DB
+      transaction.update(counterRef, { lastOrderNumber: nextNumber });
+
+      // 5. Guardar el pedido
+      transaction.set(newOrderRef, {
+        ...order,
+        orderNumber: nextNumber, // Guardamos el número para ordenar
+        displayId: formattedId,  // El ID bonito para mostrar
+        createdAt: serverTimestamp(),
+        status: 'pending'
+      });
+    });
+    
+    console.log("Pedido creado con éxito");
+  } catch (error) {
+    console.error("Error al crear pedido con consecutivo:", error);
+    throw error;
   }
-
-  setDeliveryPerson(id: string, deliveryPerson: string) {
-    const order = this.orders.find(o => o.id === id);
-    if (order) {
-      order.deliveryPerson = deliveryPerson;
-      this.notify();
-    }
-  }
-
-  deleteOrder(id: string) {
-    const index = this.orders.findIndex(o => o.id === id);
-    if (index !== -1) {
-      this.orders.splice(index, 1);
-      this.notify();
-    }
-  }
-}
-
-export const orderStore = new OrderStore();
+};

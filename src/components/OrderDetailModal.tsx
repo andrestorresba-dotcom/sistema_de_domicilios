@@ -1,4 +1,4 @@
-import { Order } from '../lib/orderStore';
+import { Order, formatCurrency } from '../lib/orderStore';
 import { X, User, Phone, MapPin, DollarSign, CreditCard, FileText } from 'lucide-react';
 
 interface OrderDetailModalProps {
@@ -16,7 +16,7 @@ export function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
             <h2 className="font-bold text-gray-900">Detalle del Pedido</h2>
-            <p className="text-sm text-gray-600">Pedido #{order.orderNumber}</p>
+            <p className="text-sm text-gray-600">Pedido #{order.orderNumber ?? order.id}</p>
           </div>
           <button
             onClick={onClose}
@@ -91,7 +91,7 @@ export function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Domicilio</span>
-              <span className="font-medium text-gray-900">${order.deliveryFee.toLocaleString()}</span>
+              <span className="font-medium text-gray-900">${formatCurrency(order.deliveryFee)}</span>
             </div>
             <div className="border-t border-gray-200 pt-2 flex justify-between">
               <span className="font-semibold text-gray-900">Total</span>
