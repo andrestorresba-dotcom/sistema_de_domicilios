@@ -17,9 +17,16 @@ export function Layout() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="font-bold text-gray-900">ASADERO DE POLLO VENTILADOR</h1>
-              <p className="text-sm text-gray-500">Sistema de Gestión de Pedidos</p>
+            <div className="flex items-center gap-4">
+              <img 
+                src="/src/public/f9bf657c82e7c182c31f3345965439fef56d541e.png" 
+                alt="Logo Asadero" 
+                className="h-16 w-auto"
+              />
+              <div>
+                <h1 className="font-bold text-gray-900">ASADERO DE POLLO VENTILADOR</h1>
+                <p className="text-sm text-gray-500">Sistema de Gestión de Pedidos</p>
+              </div>
             </div>
           </div>
         </div>
