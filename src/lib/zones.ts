@@ -5,6 +5,8 @@ export interface Zone {
 
 export const zones: Zone[] = [
   { name: 'Centro', fee: 5000 },
+  { name: 'Vecinos', fee: 3000 },
+  { name: 'Vecinos', fee: 4000 },
   { name: 'Sur Cerca', fee: 5000 },
   { name: 'Sur Lejos', fee: 6000 },
   { name: 'Norte Cerca', fee: 7000 },

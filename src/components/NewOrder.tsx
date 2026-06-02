@@ -7,6 +7,8 @@ import { Card } from './ui/card';
 import { Trash2, Plus, MapPin, CreditCard, ShoppingBasket, MessageSquare } from 'lucide-react';
 
 const ZONAS = [
+  { id: 'vecinos', nombre: 'Vecinos', precio: 3000 },
+  { id: 'vecinos', nombre: 'Vecinos', precio: 4000 },
   { id: 'centro', nombre: 'Centro', precio: 5000 },
   { id: 'centro lejos', nombre: 'Centro lejos', precio: 6000 },
   { id: 'sur lejos', nombre: 'Sur lejos', precio: 6000 },
@@ -17,6 +19,7 @@ const ZONAS = [
   { id: 'oriente', nombre: 'Oriente', precio: 6000 },
   { id: 'oriente lejos', nombre: 'Oriente lejos', precio: 8000 },
   { id: 'palermo', nombre: 'Palermo', precio: 10000 },
+  { id: 'domicilio', nombre: 'domicilio 0 ', precio: 0 },
 ];
 
 export function NewOrder() {
@@ -90,10 +93,10 @@ export function NewOrder() {
             <ShoppingBasket className="text-amber-500 w-5 h-5" /> Pedido
           </h2>
           <div className="flex gap-2">
-            <button type="button" onClick={() => handleQuickAdd('Pollo Entero', 32000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ Pollo Asado</button>
-            <button type="button" onClick={() => handleQuickAdd('Medio Pollo', 17000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ Medio Asado</button>
+            <button type="button" onClick={() => handleQuickAdd('Pollo Entero', 32000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ Pollo Entero Asado</button>
+            <button type="button" onClick={() => handleQuickAdd('Medio Pollo', 18000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ Medio Pollo Asado</button>
             <button type="button" onClick={() => handleQuickAdd('Promoción', 42000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ Promoción</button>
-             <button type="button" onClick={() => handleQuickAdd('1/4 Pollo', 12000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ 1/4 Asado</button>
+            <button type="button" onClick={() => handleQuickAdd('1/4 Pollo', 12000)} className="text-xs font-bold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">+ 1/4 Pollo Asado</button>
           </div>
         </div>
 

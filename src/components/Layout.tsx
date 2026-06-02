@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router';
-import { Home, PlusCircle, ChefHat, Truck, ScanLine, BarChart3, FileText } from 'lucide-react';
+import { Home, PlusCircle, ChefHat, Truck, ScanLine, BarChart3, FileText, Table } from 'lucide-react';
 
 export function Layout() {
   const location = useLocation();
@@ -112,6 +112,17 @@ export function Layout() {
             >
               <FileText className="w-4 h-4" />
               Reportes
+            </Link>
+            <Link
+              to="/tables"
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                isActive('/tables')
+                  ? 'border-amber-400 text-amber-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+              }`}
+            >
+              <Table className="w-4 h-4" />
+              Mesas
             </Link>
           </div>
         </div>

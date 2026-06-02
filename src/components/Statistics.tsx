@@ -1,10 +1,29 @@
-import { useMemo } from 'react';
-import { useOrders } from '../lib/hooks';
+import { useMemo, useState, useEffect } from 'react';
+import { db } from '../lib/firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { Order, getDateFromTimestamp } from '../lib/orderStore';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, DollarSign, ShoppingBag, Calendar, CreditCard, Package, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 
 export function Statistics() {
-  const orders = useOrders();
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "pedidos"), orderBy("createdAt", "desc"));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const firebaseOrders = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Order[];
+      
+      setOrders(firebaseOrders);
+    }, (error) => {
+      console.error("Error al obtener pedidos:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -12,8 +31,8 @@ export function Statistics() {
     const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     // Filter orders by date
-    const todayOrders = orders.filter(o => o.createdAt >= today);
-    const monthOrders = orders.filter(o => o.createdAt >= thisMonth);
+    const todayOrders = orders.filter(o => getDateFromTimestamp(o.createdAt) >= today);
+    const monthOrders = orders.filter(o => getDateFromTimestamp(o.createdAt) >= thisMonth);
     const deliveredOrders = orders.filter(o => o.status === 'delivered');
 
     // Daily stats
@@ -53,7 +72,7 @@ export function Statistics() {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dayOrders = orders.filter(o => {
-        const orderDate = new Date(o.createdAt);
+        const orderDate = getDateFromTimestamp(o.createdAt);
         return orderDate.toDateString() === date.toDateString() && o.status === 'delivered';
       });
       const sales = dayOrders.reduce((sum, o) => sum + o.total, 0);

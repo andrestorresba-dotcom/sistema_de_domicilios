@@ -7,6 +7,7 @@ import { DeliveryView } from "./components/DeliveryView";
 import { ScanDelivery } from "./components/ScanDelivery";
 import { Statistics } from "./components/Statistics";
 import { OrdersReport } from "./components/OrdersReport";
+import { TableView } from "./components/TableView";
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
       { path: "scan", Component: ScanDelivery },
       { path: "statistics", Component: Statistics },
       { path: "reports", Component: OrdersReport },
+      { path: "tables", Component: TableView },
     ],
   },
 ]);

@@ -4,10 +4,13 @@ import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { OrderCard } from './OrderCard';
 import { OrderDetailModal } from './OrderDetailModal';
 import { Order, OrderStatus } from '../lib/orderStore';
+import { DeliveryCashClose } from './DeliveryCashClose';
+import { DollarSign } from 'lucide-react';
 
 export function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showCashClose, setShowCashClose] = useState(false);
 
   // Escucha en tiempo real de la colección 'pedidos' de Firebase
   useEffect(() => {
@@ -44,7 +47,7 @@ export function Dashboard() {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <img 
-            src="/src/assets/f9bf657c82e7c182c31f3345965439fef56d541e.png" 
+            src="/src/public/f9bf657c82e7c182c31f3345965439fef56d541e.png" 
             alt="Logo" 
             className="h-24 w-auto"
           />
@@ -53,6 +56,13 @@ export function Dashboard() {
             <p className="text-sm text-gray-600">Vista general del estado de todos los pedidos.</p>
           </div>
         </div>
+        <button
+          onClick={() => setShowCashClose(true)}
+          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-gray-900 font-semibold rounded-xl shadow-lg transition-all"
+        >
+          <DollarSign className="w-5 h-5" />
+          Cierre de Caja
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -87,6 +97,10 @@ export function Dashboard() {
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
         />
+      )}
+
+      {showCashClose && (
+        <DeliveryCashClose onClose={() => setShowCashClose(false)} />
       )}
     </div>
   );
