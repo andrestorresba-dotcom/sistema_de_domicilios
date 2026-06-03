@@ -43,13 +43,13 @@ export function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header con Logo */}
+      {/* Header con Logo Corregido */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <img 
-            src="/src/public/f9bf657c82e7c182c31f3345965439fef56d541e.png" 
-            alt="Logo" 
-            className="h-24 w-auto"
+            src="/logoasadero copy.png" 
+            alt="Logo Asadero" 
+            className="h-24 w-auto object-contain"
           />
           <div>
             <h2 className="font-bold text-2xl text-gray-900">Tablero de Pedidos</h2>

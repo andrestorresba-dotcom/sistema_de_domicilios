@@ -19,7 +19,7 @@ export function Layout() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img 
-                src="/src/public/f9bf657c82e7c182c31f3345965439fef56d541e.png" 
+                src="/logoasadero copy.png" 
                 alt="Logo Asadero" 
                 className="h-16 w-auto"
               />
