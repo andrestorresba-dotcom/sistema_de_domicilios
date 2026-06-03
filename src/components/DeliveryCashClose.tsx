@@ -12,9 +12,13 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedDeliveryPerson, setSelectedDeliveryPerson] = useState<string>('');
   const [deliveryPeople, setDeliveryPeople] = useState<string[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  
+  // CORRECCIÓN: Obtiene la fecha de hoy en formato local AAAA-MM-DD sin desfase de zona horaria
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().split('T')[0];
+    return localISOTime;
+  });
 
   useEffect(() => {
     const q = query(collection(db, "pedidos"), orderBy("createdAt", "desc"));
@@ -26,7 +30,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
       })) as Order[];
       
       setOrders(firebaseOrders);
-
+  
       const uniqueDeliveryPeople = Array.from(
         new Set(
           firebaseOrders
@@ -47,7 +51,13 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
     const matchesDeliveryPerson = selectedDeliveryPerson === '' ||
       order.deliveryPerson === selectedDeliveryPerson;
 
-    const orderDate = getDateFromTimestamp(order.createdAt).toISOString().split('T')[0];
+    // CORRECCIÓN: Extrae año, mes y día en la zona horaria de Colombia para comparar idéntico con el calendario
+    const dateObj = getDateFromTimestamp(order.createdAt);
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const orderDate = `${year}-${month}-${day}`;
+
     const matchesDate = orderDate === selectedDate;
 
     return matchesDeliveryPerson && matchesDate && order.status === 'delivered';
@@ -68,7 +78,10 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
     if (!printWindow) return;
 
     const deliveryPersonName = selectedDeliveryPerson || 'Todos los domiciliarios';
-    const printDate = new Date(selectedDate).toLocaleDateString('es-CO', {
+    
+    // CORRECCIÓN: Evita el desfase que te cambiaba el día en el título del PDF imprimible
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    const printDate = new Date(year, month - 1, day).toLocaleDateString('es-CO', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -185,7 +198,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
                 order => `
               <tr>
                 <td>#${order.orderNumber}</td>
-                <td>${order.customerName}</td>
+                <td>${order.customerName || ''}</td>
                 <td>${order.address}</td>
                 <td>${order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</td>
                 <td>$${order.total.toLocaleString('es-CO')}</td>
