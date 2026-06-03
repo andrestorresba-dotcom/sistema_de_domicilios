@@ -57,7 +57,19 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
       </div>
 
       {/* Customer Info */}
-      <h4 className="font-semibold text-gray-900 mb-1">{order.customerName}</h4>
+      {/* Customer Info */}
+<h4 className="font-semibold text-gray-900 mb-1">
+  {order.customerName}
+</h4>
+
+{order.deliveryPerson && (
+  <div className="mb-2">
+    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+      🛵 {order.deliveryPerson}
+    </span>
+  </div>
+)}
+      
       
       {/* Items Summary */}
       <p className="text-sm text-gray-600 mb-2">
