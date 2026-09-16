@@ -167,7 +167,15 @@ export function OrdersReport() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+         <div className="text-sm text-purple-700 mb-1">
+         Valor Domicilios
+           </div>
+          <div className="text-2xl font-bold text-purple-900">
+        ${totalDeliveryFees.toLocaleString('es-CO')}
+       </div>
+      </div>
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-4 text-white">
           <p className="text-sm opacity-90 mb-1">Total Pedidos</p>
           <p className="text-2xl font-bold">{filteredOrders.length}</p>

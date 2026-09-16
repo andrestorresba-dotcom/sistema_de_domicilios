@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { OrderCard } from './OrderCard';
 import { OrderDetailModal } from './OrderDetailModal';
 import { Order, OrderStatus } from '../lib/orderStore';
@@ -12,43 +12,50 @@ export function Dashboard() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showCashClose, setShowCashClose] = useState(false);
 
-  // Escucha en tiempo real de la colección 'pedidos' de Firebase
   useEffect(() => {
-    const q = query(collection(db, "pedidos"), orderBy("createdAt", "desc"));
-    
+    // ─── Solo carga pedidos de las últimas 24 horas ───────────────────────────
+    // Esto mantiene el dashboard liviano sin importar cuántos pedidos históricos
+    // existan en Firestore. Las estadísticas y reportes tienen su propia consulta.
+    const hace24h = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+
+    const q = query(
+      collection(db, 'pedidos'),
+      where('createdAt', '>=', hace24h),
+      orderBy('createdAt', 'desc')
+    );
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const firebaseOrders = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Order[];
-      
+
       setOrders(firebaseOrders);
     }, (error) => {
-      console.error("Error al obtener pedidos:", error);
+      console.error('Error al obtener pedidos:', error);
     });
 
     return () => unsubscribe();
   }, []);
 
-  const getOrdersByStatus = (status: OrderStatus) => {
-    return orders.filter(order => order.status === status);
-  };
+  const getOrdersByStatus = (status: OrderStatus) =>
+    orders.filter(order => order.status === status);
 
   const columns = [
-    { status: 'pending' as OrderStatus, title: 'Pedidos Pendientes', color: 'bg-gray-100' },
-    { status: 'preparing' as OrderStatus, title: 'En Preparación', color: 'bg-blue-50' },
-    { status: 'in-route' as OrderStatus, title: 'En Ruta', color: 'bg-amber-50' },
-    { status: 'delivered' as OrderStatus, title: 'Entregados', color: 'bg-green-50' }
+    { status: 'pending'   as OrderStatus, title: 'Pedidos Pendientes', color: 'bg-gray-100' },
+    { status: 'preparing' as OrderStatus, title: 'En Preparación',     color: 'bg-blue-50'  },
+    { status: 'in-route'  as OrderStatus, title: 'En Ruta',            color: 'bg-amber-50' },
+    { status: 'delivered' as OrderStatus, title: 'Entregados',         color: 'bg-green-50' },
   ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header con Logo Corregido */}
+      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <img 
-            src="/logoasadero copy.png" 
-            alt="Logo Asadero" 
+          <img
+            src="/logoasadero copy.png"
+            alt="Logo Asadero"
             className="h-24 w-auto object-contain"
           />
           <div>

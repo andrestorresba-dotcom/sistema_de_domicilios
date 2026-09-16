@@ -7,9 +7,9 @@ import { Card } from './ui/card';
 import { Trash2, Plus, MapPin, CreditCard, ShoppingBasket, MessageSquare } from 'lucide-react';
 
 const ZONAS = [
-  { id: 'vecinos', nombre: 'Vecinos', precio: 3000 },
-  { id: 'vecinos', nombre: 'Vecinos', precio: 4000 },
   { id: 'centro', nombre: 'Centro', precio: 5000 },
+  { id: 'vecinos1', nombre: 'Vecinos', precio: 3000 },
+  { id: 'vecinos2', nombre: 'Vecinos', precio: 4000 },
   { id: 'centro lejos', nombre: 'Centro lejos', precio: 6000 },
   { id: 'sur lejos', nombre: 'Sur lejos', precio: 6000 },
   { id: 'sur cerca', nombre: 'Sur cerca', precio: 5000 },

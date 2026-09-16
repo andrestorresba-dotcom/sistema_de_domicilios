@@ -36,7 +36,19 @@ export interface TableOrder {
 }
 
 // Menú del restaurante
+// Items especiales con campos editables
+export const editableMenuItems: EditableMenuItem[] = [
+  { id: 'almuerzo-dia', name: 'Almuerzo del Día', price: 12000, category: 'Almuerzo del Día', isCustomizable: true },
+  { id: 'gaseosa-1.5L', name: 'Gaseosa 1.5L', price: 8000, category: 'Bebidas', needsFlavor: true },
+  { id: 'gaseosa-personal', name: 'Gaseosa Personal', price: 4000, category: 'Bebidas', needsFlavor: true },
+  { id: 'gaseosa-1L', name: 'Gaseosa 1L', price: 6000, category: 'Bebidas', needsFlavor: true },
+  { id: 'gaseosa-2L', name: 'Gaseosa 2L', price: 10000, category: 'Bebidas', needsFlavor: true },
+  { id: 'gaseosa-3L', name: 'Gaseosa 3L', price: 15000, category: 'Bebidas', needsFlavor: true },
+  { id: 'principio', name: 'Principio', price: 5000, category: 'Acompañantes', needsDescription: true },
+];
+// Menú del restaurante
 export const menuItems: MenuItem[] = [
+  {name: 'Desechables', price: 2000, category: 'Promociones' },
   { name: 'Promoción Pollo y Medio', price: 42000, category: 'Promociones' },
   { name: '1 Pollo Entero Asado', price: 32000, category: 'Pollo Asado' },
   { name: '1/2 Pollo Asado', price: 18000, category: 'Pollo Asado' },
@@ -44,27 +56,34 @@ export const menuItems: MenuItem[] = [
   { name: 'Pollo Broaster', price: 42000, category: 'Broaster' },
   { name: '1/2 Medio Broaster', price: 23000, category: 'Broaster' },
   { name: '1/4 Broaster', price: 14000, category: 'Broaster' },
-  { name: 'Mojarra Frita', price: 22000, category: 'Almuerzos Especiales' },
-  { name: 'Churrasquito', price: 23000, category: 'Almuerzos Especiales' },
-  { name: 'Churrasco', price: 35000, category: 'Almuerzos Especiales' },
-  { name: 'Lomo de Cerdo a la Plancha', price: 20000, category: 'Almuerzos Especiales' },
-  { name: 'Pechuga a la Plancha', price: 22000, category: 'Almuerzos Especiales' },
-  { name: 'Pechuga Gratinada', price: 26000, category: 'Almuerzos Especiales' },
-  { name: 'Tabla Mixta', price: 23000, category: 'Almuerzos Especiales' },
-  { name: 'Lomo de Cerdo Hawaiano', price: 26000, category: 'Almuerzos Especiales' },
-  { name: 'Pechuga Hawaiana', price: 26000, category: 'Almuerzos Especiales' },
-  { name: 'Lomo de Cerdo Ranchero', price: 26000, category: 'Almuerzos Especiales' },
-  { name: 'Pechuga Ranchera', price: 26000, category: 'Almuerzos Especiales' },
-  { name: 'Costillas en BBQ', price: 26000, category: 'Almuerzos Especiales' },
-  { name: 'Arroz Mixto', price: 12000, category: 'Almuerzos Especiales' },
-  { name: 'Viudo de Bocachico', price: 22000, category: 'Almuerzos Especiales' },
-  { name: 'Bagre en Salsa', price: 22000, category: 'Almuerzos Especiales' },
+  { name: 'Mojarra Frita', price: 24000, category: 'Almuerzos Especiales' },
+  { name: 'Churrasquito', price: 24000, category: 'Almuerzos Especiales' },
+  { name: 'Churrasco 400 gramos', price: 39000, category: 'Almuerzos Especiales' },
+  { name: 'Tabla Mixta', price: 24000, category: 'Almuerzos Especiales' },
+  { name: 'Lomo de Cerdo a la Plancha', price: 23000, category: 'Almuerzos Especiales' },
+  { name: 'Lomo de Cerdo Hawaiano', price: 27000, category: 'Almuerzos Especiales' },
+  { name: 'Lomo de Cerdo Ranchero', price: 29000, category: 'Almuerzos Especiales' },
+  { name: 'Lomo de Cerdo Gratinado', price: 27000, category: 'Almuerzos Especiales' },
+  { name: 'Pechuga a la Plancha', price: 23000, category: 'Almuerzos Especiales' },
+  { name: 'Pechuga Gratinada', price: 27000, category: 'Almuerzos Especiales' },
+  { name: 'Pechuga Hawaiana', price: 27000, category: 'Almuerzos Especiales' },
+  { name: 'Pechuga Ranchera', price: 29000, category: 'Almuerzos Especiales' },
+  { name: 'Pechuga Durazno', price: 27000, category: 'Almuerzos Especiales' },
+  { name: 'Costillas en BBQ', price: 27000, category: 'Almuerzos Especiales' },
+  { name: 'Hamburguesa de la casa', price: 22000, category: 'Almuerzos Especiales' },
+  { name: 'Nuggets de pollo', price: 14000, category: 'Almuerzos Especiales' },
+  { name: 'Salchipapa Infantil', price: 14000, category: 'Almuerzos Especiales' },
+  { name: 'Arroz Mixto', price: 15000, category: 'Almuerzos Especiales' },
+  { name: 'Arroz con Pollo', price: 15000, category: 'Almuerzos Especiales' },
+  { name: 'Viudo de Bocachico', price: 24000, category: 'Almuerzos Especiales' },
+  { name: 'Bagre en Salsa', price: 14000, category: 'Almuerzos Especiales' },
   { name: 'Bandeja Paisa', price: 18000, category: 'Almuerzos Especiales' },
   { name: 'Plato Campestre', price: 25000, category: 'Almuerzos Especiales' },
   { name: 'Sancocho de Gallina Pierna', price: 17000, category: 'Almuerzos Especiales' },
   { name: 'Sancocho de Gallina Ala', price: 14000, category: 'Almuerzos Especiales' },
   { name: 'Sancocho de Pollo Pierna/Pernil', price: 17000, category: 'Almuerzos Especiales' },
-  { name: 'Papas Casco', price: 7000, category: 'Acompañantes' },
+  { name: 'Papas Francesa', price: 8000, category: 'Acompañantes' },
+  { name: 'Sopa del Dia', price: 5000, category: 'Acompañantes' },
   { name: 'Ensalada', price: 7000, category: 'Acompañantes' },
   { name: 'Papa Salada', price: 3000, category: 'Acompañantes' },
   { name: 'Arroz', price: 3000, category: 'Acompañantes' },
@@ -76,18 +95,6 @@ export const menuItems: MenuItem[] = [
   { name: 'Botella de Agua', price: 3000, category: 'Bebidas' },
   { name: 'Cerveza', price: 4000, category: 'Bebidas' },
 ];
-
-// Items especiales con campos editables
-export const editableMenuItems: EditableMenuItem[] = [
-  { id: 'gaseosa-1.5L', name: 'Gaseosa 1.5L', price: 8000, category: 'Bebidas', needsFlavor: true },
-  { id: 'gaseosa-personal', name: 'Gaseosa Personal', price: 4000, category: 'Bebidas', needsFlavor: true },
-  { id: 'gaseosa-1L', name: 'Gaseosa 1L', price: 6000, category: 'Bebidas', needsFlavor: true },
-  { id: 'gaseosa-2L', name: 'Gaseosa 2L', price: 10000, category: 'Bebidas', needsFlavor: true },
-  { id: 'gaseosa-3L', name: 'Gaseosa 3L', price: 14000, category: 'Bebidas', needsFlavor: true },
-  { id: 'principio', name: 'Principio', price: 5000, category: 'Acompañantes', needsDescription: true },
-  { id: 'almuerzo-dia', name: 'Almuerzo del Día', price: 12000, category: 'Almuerzo del Día', isCustomizable: true },
-];
-
 class TableStore {
   private tables: Map<number, TableOrder | null> = new Map();
   private listeners: Set<() => void> = new Set();
@@ -119,7 +126,7 @@ class TableStore {
 
   getTablesByFloor(floor: number): Map<number, TableOrder | null> {
     const floorTables = new Map<number, TableOrder | null>();
-    const startTable = floor === 1 ? 1 : 23;
+    const startTable = floor === 1 ? 1 : 27;
     const endTable = floor === 1 ? 22 : 42;
 
     for (let i = startTable; i <= endTable; i++) {

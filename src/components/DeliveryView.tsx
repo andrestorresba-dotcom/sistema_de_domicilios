@@ -18,6 +18,29 @@ export function DeliveryView() {
     );
   });
 
+  const totalCash = filteredOrders
+  .filter(o => o.paymentMethod === 'cash')
+  .reduce(
+    (sum, o) =>
+      sum + ((Number(o.total) || 0) - (Number(o.deliveryFee) || 0)),
+    0
+  );
+
+const totalTransfer = filteredOrders
+  .filter(o => o.paymentMethod === 'transfer')
+  .reduce(
+    (sum, o) =>
+      sum + ((Number(o.total) || 0) - (Number(o.deliveryFee) || 0)),
+    0
+  );
+
+const totalDelivered = totalCash + totalTransfer;
+
+const totalDeliveryFees = filteredOrders.reduce(
+  (sum, o) => sum + (Number(o.deliveryFee) || 0),
+  0
+);
+
   const handleMarkDelivered = (orderId: string) => {
     if (confirm('¿Confirmar entrega del pedido?')) {
       orderStore.updateOrderStatus(orderId, 'delivered');

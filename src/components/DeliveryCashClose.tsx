@@ -2,119 +2,112 @@ import { useState, useEffect } from 'react';
 import { X, DollarSign, User, Calendar, FileText, Printer } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { Order, getDateFromTimestamp } from '../lib/orderStore';
+import { Order } from '../lib/orderStore';
 
 interface DeliveryCashCloseProps {
   onClose: () => void;
+}
+
+// Convierte cualquier timestamp de Firestore a Date de forma segura
+function toDate(ts: any): Date | null {
+  if (!ts) return null;
+  if (typeof ts.toDate === 'function') return ts.toDate(); // Firestore Timestamp
+  if (ts instanceof Date) return ts;
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Formatea una Date a YYYY-MM-DD en zona horaria de Colombia
+function toColombiaDateStr(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 }
 
 export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedDeliveryPerson, setSelectedDeliveryPerson] = useState<string>('');
   const [deliveryPeople, setDeliveryPeople] = useState<string[]>([]);
-  
-  // Obtiene la fecha actual en formato local AAAA-MM-DD sin desfase de zona horaria
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const tzoffset = (new Date()).getTimezoneOffset() * 60000;
-    const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().split('T')[0];
-    return localISOTime;
-  });
+
+  // Fecha inicial en zona Colombia
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    toColombiaDateStr(new Date())
+  );
 
   useEffect(() => {
-    const q = query(collection(db, "pedidos"), orderBy("createdAt", "desc"));
-    
+    const q = query(collection(db, 'pedidos'), orderBy('createdAt', 'desc'));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const firebaseOrders = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Order[];
-      
+
       setOrders(firebaseOrders);
-  
-      const uniqueDeliveryPeople = Array.from(
+
+      const unique = Array.from(
         new Set(
           firebaseOrders
-            .filter((order: Order) => order.deliveryPerson)
-            .map((order: Order) => order.deliveryPerson!)
+            .filter((o: Order) => o.deliveryPerson)
+            .map((o: Order) => o.deliveryPerson!.trim())
         )
       ).sort();
 
-      setDeliveryPeople(uniqueDeliveryPeople);
+      setDeliveryPeople(unique);
     }, (error) => {
-      console.error("Error al obtener pedidos:", error);
+      console.error('Error al obtener pedidos:', error);
     });
 
     return () => unsubscribe();
   }, []);
 
   const filteredOrders = orders.filter(order => {
-    // 1. Filtro de domiciliario
-    const matchesDeliveryPerson = selectedDeliveryPerson === '' ||
-      order.deliveryPerson === selectedDeliveryPerson;
+    // 1. Filtro por domiciliario
+    const matchesPerson =
+      selectedDeliveryPerson === '' ||
+      (order.deliveryPerson?.trim() === selectedDeliveryPerson.trim());
 
-    // 2. Extracción segura de la fecha
-    let dateObj: Date | null = null;
+    // 2. Filtro por estado entregado
+    const status = (order.status || '').toLowerCase().trim();
+    const isDelivered = status === 'delivered' || status === 'entregado';
 
-    if (order.createdAt) {
-      if (typeof (order.createdAt as any).toDate === 'function') {
-        dateObj = (order.createdAt as any).toDate();
-      } else if (order.createdAt instanceof Date) {
-        dateObj = order.createdAt;
-      } else {
-        dateObj = new Date(order.createdAt as any);
-      }
-    }
+    // 3. Filtro por fecha — convierte a Date y compara en zona Colombia
+    const dateObj = toDate(order.createdAt);
+    if (!dateObj) return false;
+    const matchesDate = toColombiaDateStr(dateObj) === selectedDate;
 
-    if (!dateObj || isNaN(dateObj.getTime())) {
-      return false;
-    }
-
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const day = String(dateObj.getDate()).padStart(2, '0');
-    const orderDate = `${year}-${month}-${day}`;
-
-    const matchesDate = orderDate === selectedDate;
-
-    // 3. Filtro de estado
-    const statusClean = order.status ? order.status.toLowerCase().trim() : '';
-    const isDelivered = statusClean === 'delivered' || statusClean === 'entregado';
-
-    return matchesDeliveryPerson && matchesDate && isDelivered;
+    return matchesPerson && isDelivered && matchesDate;
   });
 
-  // CORRECCIÓN TOTALES: Limpieza numérica forzada para evitar el congelamiento en 0
+  // Totales — paymentMethod viene como 'cash' | 'transfer' exacto desde NewOrder
   const totalCash = filteredOrders
-    .filter(order => order.paymentMethod === 'cash')
-    .reduce((sum, order) => {
-      const val = typeof order.total === 'number' ? order.total : parseFloat(String(order.total || 0).replace(/[^0-9.-]+/g, ""));
-      return sum + (isNaN(val) ? 0 : val);
-    }, 0);
+    .filter(o => o.paymentMethod === 'cash')
+    .reduce(
+      (sum, o) =>
+        sum + ((Number(o.total) || 0) - (Number(o.deliveryFee) || 0)),
+      0
+    );
 
   const totalTransfer = filteredOrders
-    .filter(order => order.paymentMethod === 'transfer')
-    .reduce((sum, order) => {
-      const val = typeof order.total === 'number' ? order.total : parseFloat(String(order.total || 0).replace(/[^0-9.-]+/g, ""));
-      return sum + (isNaN(val) ? 0 : val);
-    }, 0);
+    .filter(o => o.paymentMethod === 'transfer')
+    .reduce(
+      (sum, o) =>
+        sum + ((Number(o.total) || 0) - (Number(o.deliveryFee) || 0)),
+      0
+    );
 
-  const totalDelivered = filteredOrders.reduce((sum, order) => {
-    const val = typeof order.total === 'number' ? order.total : parseFloat(String(order.total || 0).replace(/[^0-9.-]+/g, ""));
-    return sum + (isNaN(val) ? 0 : val);
-  }, 0);
+  const totalDelivered = totalCash + totalTransfer;
+  const totalDeliveryFees = filteredOrders.reduce(
+    (sum, o) => sum + (Number(o.deliveryFee) || 0),
+    0
+  );
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
     const deliveryPersonName = selectedDeliveryPerson || 'Todos los domiciliarios';
-    
-    const [year, month, day] = selectedDate.split('-').map(Number);
-    const printDate = new Date(year, month - 1, day).toLocaleDateString('es-CO', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const printDate = new Date(y, m - 1, d).toLocaleDateString('es-CO', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     });
 
     printWindow.document.write(`
@@ -157,19 +150,30 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
           <tbody>
             ${filteredOrders.map(order => `
               <tr>
-                <td>#${order.orderNumber}</td>
-                <td>${order.customerName || ''}</td>
-                <td>${order.address}</td>
+                <td>#${order.orderNumber || order.id}</td>
+                <td>${order.customerName || '---'}</td>
+                <td>${order.address || 'Sin dirección'}</td>
                 <td>${order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</td>
-                <td>$${order.total.toLocaleString('es-CO')}</td>
+                <td>$${(Number(order.total) || 0).toLocaleString('es-CO')}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
         <div class="totals">
-          <div class="total-row"><span>Total en Efectivo:</span> <strong>$${totalCash.toLocaleString('es-CO')}</strong></div>
-          <div class="total-row"><span>Total en Transferencia:</span> <strong>$${totalTransfer.toLocaleString('es-CO')}</strong></div>
-          <div class="total-row grand"><span>TOTAL ENTREGADO:</span> <strong>$${totalDelivered.toLocaleString('es-CO')}</strong></div>
+          <div class="total-row">
+            <span>Subtotal Productos:</span>
+            <strong>$${totalDelivered.toLocaleString('es-CO')}</strong>
+          </div>
+
+          <div class="total-row">
+            <span>Valor Domicilios:</span>
+            <strong>$${totalDeliveryFees.toLocaleString('es-CO')}</strong>
+          </div>
+
+          <div class="total-row grand">
+            <span>DINERO A ENTREGAR AL ASADERO:</span>
+            <strong>$${totalDelivered.toLocaleString('es-CO')}</strong>
+          </div>
         </div>
       </body>
       </html>
@@ -182,6 +186,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-400 to-orange-400 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -198,7 +203,8 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Filters */}
+
+          {/* Filtros */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -229,22 +235,26 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
             </div>
           </div>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Tarjetas resumen */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
               <div className="text-sm text-green-700 mb-1">Total Efectivo</div>
               <div className="text-2xl font-bold text-green-900">
                 ${totalCash.toLocaleString('es-CO')}
               </div>
             </div>
-
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="text-sm text-blue-700 mb-1">Total Transferencia</div>
               <div className="text-2xl font-bold text-blue-900">
                 ${totalTransfer.toLocaleString('es-CO')}
               </div>
             </div>
-
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+              <div className="text-sm text-purple-700 mb-1">Valor Domicilios</div>
+              <div className="text-2xl font-bold text-purple-900">
+                ${totalDeliveryFees.toLocaleString('es-CO')}
+              </div>
+            </div>
             <div className="bg-amber-50 border border-amber-300 rounded-xl p-4">
               <div className="text-sm text-amber-700 mb-1">Total Entregado</div>
               <div className="text-2xl font-bold text-amber-900">
@@ -253,9 +263,8 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
             </div>
           </div>
 
-          {/* Orders Table */}
+          {/* Tabla de pedidos */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            {/* CORRECCIÓN EN EL CONTADOR DE ABAJO: Usamos filteredOrders.length de forma explícita */}
             <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                 <FileText className="w-5 h-5" />
@@ -282,9 +291,9 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
                   <tbody className="divide-y divide-gray-200">
                     {filteredOrders.map(order => (
                       <tr key={order.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-semibold text-gray-900">#{order.orderNumber}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">#{order.orderNumber || order.id}</td>
                         <td className="px-4 py-3 text-gray-700">{order.customerName || '---'}</td>
-                        <td className="px-4 py-3 text-gray-600 text-sm">{order.address}</td>
+                        <td className="px-4 py-3 text-gray-600 text-sm">{order.address || 'Sin dirección'}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             order.paymentMethod === 'cash' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
@@ -293,7 +302,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                          ${(typeof order.total === 'number' ? order.total : parseFloat(String(order.total || 0).replace(/[^0-9.-]+/g, ""))).toLocaleString('es-CO')}
+                          ${(Number(order.total) || 0).toLocaleString('es-CO')}
                         </td>
                       </tr>
                     ))}
@@ -303,7 +312,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
             )}
           </div>
 
-          {/* Print Button */}
+          {/* Botón imprimir */}
           {filteredOrders.length > 0 && (
             <div className="mt-6">
               <button

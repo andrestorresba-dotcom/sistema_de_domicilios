@@ -9,13 +9,26 @@ export function PrintTableTicket({ order }: PrintTableTicketProps) {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const subtotal = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // 1. Extraemos y formateamos de forma segura las variables antes de inyectarlas
+    const isToGo = order.tableNumber >= 23 && order.tableNumber <= 26;
+    const titleText = isToGo ? `PARA LLEVAR #${order.tableNumber}` : `Pedido Mesa ${order.tableNumber}`;
+    
+    // Validamos si createdAt es un objeto Date válido, si no, usamos la fecha actual
+    const dateObj = order.createdAt instanceof Date ? order.createdAt : new Date();
+    const formattedDate = dateObj.toLocaleDateString('es-CO');
+    const formattedTime = dateObj.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+
+    // Calculamos el total formateado listo para el string
+    const totalFormatted = formatCurrency(order.total);
+
+    // Generamos la URL del código de barras
+    const barcodeUrl = `https://bwipjs-api.metafloor.com/?bcid=code128&text=${order.tableNumber}&scale=2&height=12&includetext=true`;
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Ticket Mesa ${order.tableNumber}</title>
+          <title>Ticket ${titleText}</title>
           <style>
             @media print {
               @page { margin: 0; }
@@ -33,6 +46,7 @@ export function PrintTableTicket({ order }: PrintTableTicketProps) {
               padding: 10px;
               max-width: 80mm;
               margin: 0 auto;
+              color: #000;
             }
             .header {
               text-align: center;
@@ -73,10 +87,25 @@ export function PrintTableTicket({ order }: PrintTableTicketProps) {
               font-weight: bold;
               display: flex;
               justify-content: space-between;
+              font-size: 14px;
+            }
+            .barcode-container {
+              text-align: center;
+              margin-top: 15px;
+              margin-bottom: 5px;
+              padding-top: 5px;
+            }
+            .barcode-img {
+              max-width: 100%;
+              height: auto;
+              /* Propiedades CSS clave para impresión térmica limpia en blanco y negro puro */
+              image-rendering: pixelated;
+              image-rendering: crisp-edges;
+              filter: contrast(200%);
             }
             .footer {
               text-align: center;
-              margin-top: 15px;
+              margin-top: 10px;
               font-size: 10px;
               border-top: 1px dashed #000;
               padding-top: 10px;
@@ -86,14 +115,14 @@ export function PrintTableTicket({ order }: PrintTableTicketProps) {
         <body>
           <div class="header">
             <div class="restaurant-name">ASADERO VENTILADOR</div>
-            <div>Pedido Mesa ${order.tableNumber}</div>
-            <div>Piso ${order.floor}</div>
+            <div style="font-weight: bold; font-size: 13px;">${titleText}</div>
+            ${!isToGo ? `<div>Piso ${order.floor}</div>` : '<div>ÁREA DE DESPACHO</div>'}
           </div>
 
           <div class="order-info">
             <div><strong>Mesero:</strong> ${order.waiterName}</div>
-            <div><strong>Fecha:</strong> ${order.createdAt.toLocaleDateString()}</div>
-            <div><strong>Hora:</strong> ${order.createdAt.toLocaleTimeString()}</div>
+            <div><strong>Fecha:</strong> ${formattedDate}</div>
+            <div><strong>Hora:</strong> ${formattedTime}</div>
             ${order.observations ? `<div><strong>Observaciones:</strong> ${order.observations}</div>` : ''}
           </div>
 
@@ -109,20 +138,26 @@ export function PrintTableTicket({ order }: PrintTableTicketProps) {
 
           <div class="total">
             <span>TOTAL:</span>
-            <span>${formatCurrency(order.total)}</span>
+            <span>${totalFormatted}</span>
+          </div>
+
+          <div class="barcode-container">
+            <img class="barcode-img" src="${barcodeUrl}" alt="Código de barras Mesa ${order.tableNumber}" />
           </div>
 
           <div class="footer">
-            ¡Gracias por su visita!<br>
+            ¡Gracias por su compra!<br>
             www.asaderoventilador.com
           </div>
 
           <script>
             window.onload = function() {
-              window.print();
               setTimeout(function() {
-                window.close();
-              }, 1000);
+                window.print();
+                setTimeout(function() {
+                  window.close();
+                }, 500);
+              }, 300);
             };
           </script>
         </body>
@@ -135,9 +170,9 @@ export function PrintTableTicket({ order }: PrintTableTicketProps) {
   return (
     <button
       onClick={handlePrint}
-      className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+      className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2"
     >
-      🖨️ Imprimir Ticket
+      <span>🖨️</span> Imprimir Pre-cuenta / Ticket
     </button>
   );
 }

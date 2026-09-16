@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Plus, Minus, Trash2, Edit3 } from 'lucide-react';
 import { tableStore, TableItem, menuItems, editableMenuItems, TableOrder } from './lib/tableStore';
 import { PrintTableTicket } from './components/PrintTableTicket';
+import { db } from './lib/firebase';
+import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 interface TableOrderModalProps {
   tableNumber: number;
@@ -21,15 +23,52 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
   const [customPrice, setCustomPrice] = useState('');
   const [customNote, setCustomNote] = useState('');
 
+  // Bandera para evitar que Firebase nos pise los datos mientras el mesero edita localmente
+  const isInitialLoad = useRef(true);
+
+  // 🔄 Sincronización inteligente en tiempo real
   useEffect(() => {
-    const existingOrder = tableStore.getTableOrder(tableNumber);
-    if (existingOrder) {
-      setCurrentOrder(existingOrder);
-      setWaiterName(existingOrder.waiterName);
-      setItems([...existingOrder.items]);
-      setObservations(existingOrder.observations || '');
-    }
-  }, [tableNumber]);
+    isInitialLoad.current = true;
+    const docRef = doc(db, 'mesas', tableNumber.toString());
+    
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists() && docSnap.data().status !== 'available') {
+        const data = docSnap.data();
+        const orderFetched: TableOrder = {
+          id: docSnap.id,
+          tableNumber: data.tableNumber || tableNumber,
+          floor: data.floor || floor,
+          waiterName: data.waiterName || '',
+          items: data.items || [],
+          total: data.total || 0,
+          observations: data.observations || '',
+          status: data.status || 'occupied',
+          createdAt: data.createdAt?.toDate() || new Date()
+        };
+        
+        setCurrentOrder(orderFetched);
+
+        if (isInitialLoad.current) {
+          setWaiterName(orderFetched.waiterName);
+          setItems([...orderFetched.items]);
+          setObservations(orderFetched.observations || '');
+          isInitialLoad.current = false;
+        }
+      } else {
+        if (isInitialLoad.current) {
+          setCurrentOrder(null);
+          setWaiterName('');
+          setItems([]);
+          setObservations('');
+          isInitialLoad.current = false;
+        }
+      }
+    }, (error) => {
+      console.error("Error en Snapshot del modal:", error);
+    });
+
+    return () => unsubscribe();
+  }, [tableNumber, floor]);
 
   const categories = ['Todos', ...Array.from(new Set(menuItems.map(item => item.category)))];
 
@@ -110,7 +149,7 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
     setItems(items.filter(item => item.name !== itemName));
   };
 
-  const handleSaveOrder = () => {
+  const handleSaveOrder = async () => {
     if (!waiterName.trim()) {
       alert('Por favor ingresa el nombre del mesero');
       return;
@@ -125,60 +164,93 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
       tableNumber,
       floor,
       waiterName: waiterName.trim(),
-      items,
+      items: items.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        ...(item.customNote && { customNote: item.customNote })
+      })),
       total,
-      observations: observations.trim()
+      observations: observations.trim(),
+      status: 'occupied',
+      createdAt: currentOrder?.createdAt || new Date()
     };
 
-    if (currentOrder) {
-      tableStore.updateOrder(tableNumber, orderData);
-    } else {
-      tableStore.createOrder(orderData);
-    }
+    try {
+      await setDoc(
+        doc(db, 'mesas', tableNumber.toString()),
+        orderData
+      );
 
-    onClose();
+      if (currentOrder) {
+        tableStore.updateOrder(tableNumber, orderData as any);
+      } else {
+        tableStore.createOrder(orderData as any);
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error guardando pedido:', error);
+      alert('Error al guardar el pedido');
+    }
   };
 
-  const handleCompleteOrder = () => {
+  const handleCompleteOrder = async () => {
     if (window.confirm('¿Deseas marcar esta mesa como pagada y completar el pedido?')) {
-      tableStore.completeOrder(tableNumber);
-      onClose();
+      try {
+        const uniqueVentaId = `${tableNumber}-${Date.now()}`;
+        
+        const ventaData = {
+          id: uniqueVentaId,
+          tableNumber,
+          floor,
+          waiterName: waiterName.trim(),
+          items: items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            ...(item.customNote && { customNote: item.customNote })
+          })),
+          total,
+          observations: observations.trim(),
+          status: 'completed',
+          completedAt: new Date().toISOString()
+        };
+
+        await setDoc(doc(db, 'ventas', uniqueVentaId), ventaData);
+        await deleteDoc(doc(db, 'mesas', tableNumber.toString()));
+
+        tableStore.completeOrder(tableNumber);
+        onClose();
+      } catch (error) {
+        console.error("Error al completar pedido:", error);
+        alert('Error al completar pedido');
+      }
     }
   };
 
-  const handleCancelOrder = () => {
+  const handleCancelOrder = async () => {
     if (window.confirm('¿Estás seguro de cancelar este pedido?')) {
-      tableStore.cancelOrder(tableNumber);
-      onClose();
+      try {
+        await deleteDoc(doc(db, 'mesas', tableNumber.toString()));
+        tableStore.cancelOrder(tableNumber);
+        onClose();
+      } catch (error) {
+        console.error(error);
+        alert('Error al cancelar pedido');
+      }
     }
   };
-
-  const orderForPrint: TableOrder | null = currentOrder ? {
-    ...currentOrder,
-    waiterName,
-    items,
-    total,
-    observations
-  } : (waiterName && items.length > 0) ? {
-    id: Date.now().toString(),
-    tableNumber,
-    floor,
-    waiterName,
-    items,
-    total,
-    observations,
-    status: 'occupied',
-    createdAt: new Date()
-  } : null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
+        {/* Header Dinámico */}
         <div className="bg-gradient-to-r from-amber-400 to-orange-400 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">
-              Mesa #{tableNumber} - Piso {floor}
+              {tableNumber >= 23 && tableNumber <= 26 
+                ? `📦 Para Llevar #${tableNumber}` 
+                : `Mesa #${tableNumber} - Piso ${floor}`}
             </h2>
             <p className="text-gray-700">
               {currentOrder ? 'Actualizar pedido' : 'Nuevo pedido'}
@@ -232,44 +304,19 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
                 </div>
               </div>
 
-              {/* Menu Items */}
+              {/* Menú Completo Unificado */}
               <div className="space-y-2">
                 <h3 className="font-semibold text-gray-900 mb-3">Menú</h3>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {filteredMenuItems.map(item => (
-                    <button
-                      key={item.name}
-                      onClick={() => handleAddItem(item)}
-                      className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-amber-50 rounded-lg transition-colors border border-gray-200 hover:border-amber-300"
-                    >
-                      <div className="text-left">
-                        <div className="font-medium text-gray-900">{item.name}</div>
-                        <div className="text-xs text-gray-500">{item.category}</div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold text-gray-900">
-                          ${item.price.toLocaleString('es-CO')}
-                        </span>
-                        <Plus className="w-5 h-5 text-amber-600" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Editable Items */}
-              <div className="space-y-2 mt-6 pt-6 border-t border-gray-200">
-                <h3 className="font-semibold text-gray-900 mb-3">Items Personalizables</h3>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="space-y-2 max-h-[450px] overflow-y-auto pr-1">
+                  
+                  {/* 1. SECCIÓN DE ITEMS PERSONALIZABLES (SIEMPRE ARRIBA) */}
                   {editableMenuItems
-                    .filter(item =>
-                      selectedCategory === 'Todos' || item.category === selectedCategory
-                    )
+                    .filter(item => selectedCategory === 'Todos' || item.category === selectedCategory)
                     .map(item => (
                       <button
                         key={item.id}
                         onClick={() => handleOpenEditableModal(item)}
-                        className="w-full flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 hover:border-blue-400"
+                        className="w-full flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 hover:border-blue-400 shadow-sm"
                       >
                         <div className="text-left">
                           <div className="font-medium text-gray-900 flex items-center gap-2">
@@ -291,6 +338,32 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
                         </div>
                       </button>
                     ))}
+
+                  {/* Separador discontinuo sutil si coexisten ambos mundos en la categoría */}
+                  {editableMenuItems.filter(item => selectedCategory === 'Todos' || item.category === selectedCategory).length > 0 && 
+                   filteredMenuItems.length > 0 && (
+                    <div className="h-1 border-b border-dashed border-gray-200 my-2"></div>
+                  )}
+
+                  {/* 2. SECCIÓN DE ITEMS FIJOS (ABAJO) */}
+                  {filteredMenuItems.map(item => (
+                    <button
+                      key={item.name}
+                      onClick={() => handleAddItem(item)}
+                      className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-amber-50 rounded-lg transition-colors border border-gray-200 hover:border-amber-300"
+                    >
+                      <div className="text-left">
+                        <div className="font-medium text-gray-900">{item.name}</div>
+                        <div className="text-xs text-gray-500">{item.category}</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-gray-900">
+                          ${item.price.toLocaleString('es-CO')}
+                        </span>
+                        <Plus className="w-5 h-5 text-amber-600" />
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -307,7 +380,7 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                   {items.map(item => (
                     <div
                       key={item.name}
@@ -361,9 +434,9 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
                 <textarea
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
-                  placeholder="Ej: Sin sal, extra picante..."
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                  placeholder="Ej: Sin sal, empacar por separado..."
+                  rows={2}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none text-sm"
                 />
               </div>
 
@@ -378,22 +451,24 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
               </div>
 
               {/* Actions */}
-              <div className="mt-6 space-y-3">
+              <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   onClick={handleSaveOrder}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                  className="col-span-2 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-sm"
                 >
                   {currentOrder ? 'Actualizar Pedido' : 'Guardar Pedido'}
                 </button>
 
                 {currentOrder && (
-                  <PrintTableTicket order={currentOrder} />
+                  <div className="col-span-2">
+                    <PrintTableTicket order={currentOrder} />
+                  </div>
                 )}
 
                 {currentOrder && (
                   <button
                     onClick={handleCompleteOrder}
-                    className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm shadow-sm"
                   >
                     Completar y Pagar
                   </button>
@@ -402,7 +477,7 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
                 {currentOrder && (
                   <button
                     onClick={handleCancelOrder}
-                    className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors text-sm shadow-sm"
                   >
                     Cancelar Pedido
                   </button>
