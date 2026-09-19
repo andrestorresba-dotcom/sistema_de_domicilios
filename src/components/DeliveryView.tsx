@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useOrders } from '../lib/hooks';
 import { orderStore, formatCurrency } from '../lib/orderStore';
-import { Truck, MapPin, DollarSign, CreditCard, Search, CheckCircle } from 'lucide-react';
+import { Truck, MapPin, DollarSign, CreditCard, Search, CheckCircle, Undo2, Bike } from 'lucide-react';
 
 export function DeliveryView() {
   const orders = useOrders();
@@ -44,6 +44,12 @@ const totalDeliveryFees = filteredOrders.reduce(
   const handleMarkDelivered = (orderId: string) => {
     if (confirm('¿Confirmar entrega del pedido?')) {
       orderStore.updateOrderStatus(orderId, 'delivered');
+    }
+  };
+
+  const handleReturnToPreparing = (orderId: string) => {
+    if (confirm('¿Devolver este pedido a Preparación para asignar/corregir el domiciliario?')) {
+      orderStore.updateOrderStatus(orderId, 'preparing');
     }
   };
 
@@ -90,6 +96,20 @@ const totalDeliveryFees = filteredOrders.reduce(
                     #{order.orderNumber ?? order.id}
                   </span>
                   <h3 className="font-semibold text-gray-900">{order.customerName}</h3>
+                </div>
+
+                {/* Delivery Person */}
+                <div className="flex items-center gap-2 mb-3">
+                  <Bike className="w-4 h-4 text-blue-500" />
+                  {order.deliveryPerson ? (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                      {order.deliveryPerson}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+                      ⚠️ Sin domiciliario asignado
+                    </span>
+                  )}
                 </div>
 
                 {/* Address */}
@@ -141,14 +161,21 @@ const totalDeliveryFees = filteredOrders.reduce(
                 )}
               </div>
 
-              {/* Right Side - Action Button */}
-              <div className="md:w-48">
+              {/* Right Side - Action Buttons */}
+              <div className="md:w-48 space-y-2">
                 <button
                   onClick={() => handleMarkDelivered(order.id)}
                   className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <CheckCircle className="w-5 h-5" />
                   Entregado
+                </button>
+                <button
+                  onClick={() => handleReturnToPreparing(order.id)}
+                  className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+                >
+                  <Undo2 className="w-4 h-4" />
+                  Devolver
                 </button>
               </div>
             </div>

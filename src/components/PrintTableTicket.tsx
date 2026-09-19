@@ -121,6 +121,7 @@ export function PrintTableTicket({ order }: PrintTableTicketProps) {
 
           <div class="order-info">
             <div><strong>Mesero:</strong> ${order.waiterName}</div>
+            ${!isToGo ? `<div><strong>Personas:</strong> ${order.numberOfPeople || 1}</div>` : ''}
             <div><strong>Fecha:</strong> ${formattedDate}</div>
             <div><strong>Hora:</strong> ${formattedTime}</div>
             ${order.observations ? `<div><strong>Observaciones:</strong> ${order.observations}</div>` : ''}

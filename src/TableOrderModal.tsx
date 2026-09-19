@@ -13,6 +13,7 @@ interface TableOrderModalProps {
 
 export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModalProps) {
   const [waiterName, setWaiterName] = useState('');
+  const [numberOfPeople, setNumberOfPeople] = useState<number>(1);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [items, setItems] = useState<TableItem[]>([]);
   const [observations, setObservations] = useState('');
@@ -39,6 +40,7 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
           tableNumber: data.tableNumber || tableNumber,
           floor: data.floor || floor,
           waiterName: data.waiterName || '',
+          numberOfPeople: data.numberOfPeople || 1,
           items: data.items || [],
           total: data.total || 0,
           observations: data.observations || '',
@@ -50,6 +52,7 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
 
         if (isInitialLoad.current) {
           setWaiterName(orderFetched.waiterName);
+          setNumberOfPeople(orderFetched.numberOfPeople || 1);
           setItems([...orderFetched.items]);
           setObservations(orderFetched.observations || '');
           isInitialLoad.current = false;
@@ -58,6 +61,7 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
         if (isInitialLoad.current) {
           setCurrentOrder(null);
           setWaiterName('');
+          setNumberOfPeople(1);
           setItems([]);
           setObservations('');
           isInitialLoad.current = false;
@@ -164,6 +168,7 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
       tableNumber,
       floor,
       waiterName: waiterName.trim(),
+      numberOfPeople,
       items: items.map(item => ({
         name: item.name,
         quantity: item.quantity,
@@ -204,6 +209,7 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
           tableNumber,
           floor,
           waiterName: waiterName.trim(),
+          numberOfPeople,
           items: items.map(item => ({
             name: item.name,
             quantity: item.quantity,
@@ -246,15 +252,32 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
       <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header Dinámico */}
         <div className="bg-gradient-to-r from-amber-400 to-orange-400 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              {tableNumber >= 23 && tableNumber <= 26 
-                ? `📦 Para Llevar #${tableNumber}` 
-                : `Mesa #${tableNumber} - Piso ${floor}`}
-            </h2>
-            <p className="text-gray-700">
-              {currentOrder ? 'Actualizar pedido' : 'Nuevo pedido'}
-            </p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {tableNumber >= 23 && tableNumber <= 26 
+                  ? `📦 Para Llevar #${tableNumber}` 
+                  : `Mesa #${tableNumber} - Piso ${floor}`}
+              </h2>
+              <p className="text-gray-700">
+                {currentOrder ? 'Actualizar pedido' : 'Nuevo pedido'}
+              </p>
+            </div>
+            {!(tableNumber >= 23 && tableNumber <= 26) && (
+              <div className="flex items-center gap-2 bg-white/60 border border-gray-900/10 rounded-lg px-3 py-2">
+                <label htmlFor="numberOfPeople" className="text-sm font-semibold text-gray-800">
+                  Personas:
+                </label>
+                <input
+                  id="numberOfPeople"
+                  type="number"
+                  min={1}
+                  value={numberOfPeople}
+                  onChange={(e) => setNumberOfPeople(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-16 text-center font-extrabold text-gray-900 bg-white border border-gray-300 rounded-md py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -370,7 +393,14 @@ export function TableOrderModal({ tableNumber, floor, onClose }: TableOrderModal
 
             {/* Right Column - Order Summary */}
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Resumen del Pedido</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-900">Resumen del Pedido</h3>
+                {!(tableNumber >= 23 && tableNumber <= 26) && (
+                  <span className="text-sm font-bold text-gray-900 bg-amber-100 border border-amber-300 rounded-full px-3 py-1">
+                    👥 {numberOfPeople} {numberOfPeople === 1 ? 'persona' : 'personas'}
+                  </span>
+                )}
+              </div>
               
               {items.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">

@@ -1,6 +1,7 @@
 import { Order, orderStore, getFormattedTime } from '../lib/orderStore';
-import { MapPin, DollarSign, CreditCard, Clock, Trash2 } from 'lucide-react';
+import { MapPin, DollarSign, CreditCard, Clock, Trash2, Pencil } from 'lucide-react';
 import { useState } from 'react';
+import { EditOrderModal } from './EditOrderModal';
 
 interface OrderCardProps {
   order: Order;
@@ -10,6 +11,12 @@ interface OrderCardProps {
 export function OrderCard({ order, onClick }: OrderCardProps) {
   const [deliveryPerson, setDeliveryPerson] = useState(order.deliveryPerson || '');
   const [showDeliveryInput, setShowDeliveryInput] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowEditModal(true);
+  };
 
   const handlePrepare = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -43,10 +50,19 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+      className="relative bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
     >
+      {/* Botón editar (esquina) */}
+      <button
+        onClick={handleEdit}
+        title="Editar pedido"
+        className="absolute top-2 right-2 p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors z-10"
+      >
+        <Pencil className="w-3.5 h-3.5 text-gray-600" />
+      </button>
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 pr-8">
         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-amber-400 text-gray-900">
           #{order.orderNumber ?? order.id}
         </span>
@@ -144,6 +160,10 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
           Eliminar
         </button>
       </div>
+
+      {showEditModal && (
+        <EditOrderModal order={order} onClose={() => setShowEditModal(false)} />
+      )}
     </div>
   );
 }

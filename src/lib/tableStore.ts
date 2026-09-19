@@ -28,6 +28,7 @@ export interface TableOrder {
   tableNumber: number;
   floor: number;
   waiterName: string;
+  numberOfPeople?: number;
   items: TableItem[];
   total: number;
   status: TableStatus;

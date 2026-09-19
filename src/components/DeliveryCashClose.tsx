@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, DollarSign, User, Calendar, FileText, Printer } from 'lucide-react';
+import { X, DollarSign, User, Calendar, FileText, Printer, Trash2, Undo2, Settings2 } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Order } from '../lib/orderStore';
 
 interface DeliveryCashCloseProps {
@@ -25,12 +25,51 @@ function toColombiaDateStr(d: Date): string {
 export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedDeliveryPerson, setSelectedDeliveryPerson] = useState<string>('');
-  const [deliveryPeople, setDeliveryPeople] = useState<string[]>([]);
+  const [allDeliveryPeople, setAllDeliveryPeople] = useState<string[]>([]);
+  const [hiddenDeliveryPeople, setHiddenDeliveryPeople] = useState<string[]>([]);
+  const [showManagePeople, setShowManagePeople] = useState(false);
+
+  // Lista visible en el filtro: todos menos los ocultos manualmente
+  const deliveryPeople = allDeliveryPeople.filter(p => !hiddenDeliveryPeople.includes(p));
 
   // Fecha inicial en zona Colombia
   const [selectedDate, setSelectedDate] = useState<string>(() =>
     toColombiaDateStr(new Date())
   );
+
+  // Escucha la lista de nombres ocultados manualmente (persistida en Firestore)
+  useEffect(() => {
+    const configRef = doc(db, 'config', 'domiciliariosOcultos');
+    const unsubscribe = onSnapshot(configRef, (snap) => {
+      setHiddenDeliveryPeople(snap.exists() ? (snap.data().nombres || []) : []);
+    }, (error) => {
+      console.error('Error al obtener domiciliarios ocultos:', error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleHidePerson = async (name: string) => {
+    try {
+      await setDoc(doc(db, 'config', 'domiciliariosOcultos'), {
+        nombres: arrayUnion(name)
+      }, { merge: true });
+      if (selectedDeliveryPerson === name) {
+        setSelectedDeliveryPerson('');
+      }
+    } catch (error) {
+      console.error('Error al ocultar domiciliario:', error);
+    }
+  };
+
+  const handleRestorePerson = async (name: string) => {
+    try {
+      await setDoc(doc(db, 'config', 'domiciliariosOcultos'), {
+        nombres: arrayRemove(name)
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error al restaurar domiciliario:', error);
+    }
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'pedidos'), orderBy('createdAt', 'desc'));
@@ -51,7 +90,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
         )
       ).sort();
 
-      setDeliveryPeople(unique);
+      setAllDeliveryPeople(unique);
     }, (error) => {
       console.error('Error al obtener pedidos:', error);
     });
@@ -144,6 +183,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
               <th>Cliente</th>
               <th>Dirección</th>
               <th>Método de Pago</th>
+              <th>Domicilio</th>
               <th>Total</th>
             </tr>
           </thead>
@@ -154,6 +194,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
                 <td>${order.customerName || '---'}</td>
                 <td>${order.address || 'Sin dirección'}</td>
                 <td>${order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</td>
+                <td>$${(Number(order.deliveryFee) || 0).toLocaleString('es-CO')}</td>
                 <td>$${(Number(order.total) || 0).toLocaleString('es-CO')}</td>
               </tr>
             `).join('')}
@@ -205,11 +246,22 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
         <div className="flex-1 overflow-y-auto p-6">
 
           {/* Filtros */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <User className="w-4 h-4 inline mr-1" /> Domiciliario
-              </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+            <div className="relative">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  <User className="w-4 h-4 inline mr-1" /> Domiciliario
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowManagePeople(!showManagePeople)}
+                  title="Gestionar lista de domiciliarios"
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-800 flex items-center gap-1"
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                  Gestionar lista
+                </button>
+              </div>
               <select
                 value={selectedDeliveryPerson}
                 onChange={(e) => setSelectedDeliveryPerson(e.target.value)}
@@ -220,6 +272,48 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
                   <option key={person} value={person}>{person}</option>
                 ))}
               </select>
+
+              {showManagePeople && (
+                <div className="absolute z-20 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-72 overflow-y-auto">
+                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-600">Nombres detectados en pedidos</span>
+                    <button onClick={() => setShowManagePeople(false)} className="text-gray-400 hover:text-gray-700">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {allDeliveryPeople.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-4">Sin domiciliarios registrados aún</p>
+                  )}
+                  {allDeliveryPeople.map(person => {
+                    const isHidden = hiddenDeliveryPeople.includes(person);
+                    return (
+                      <div
+                        key={person}
+                        className={`flex items-center justify-between px-4 py-2 border-b border-gray-100 last:border-b-0 ${isHidden ? 'opacity-50' : ''}`}
+                      >
+                        <span className="text-sm text-gray-800">{person}</span>
+                        {isHidden ? (
+                          <button
+                            onClick={() => handleRestorePerson(person)}
+                            title="Volver a mostrar"
+                            className="p-1.5 hover:bg-green-50 rounded-md"
+                          >
+                            <Undo2 className="w-4 h-4 text-green-600" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleHidePerson(person)}
+                            title="Eliminar de la lista"
+                            className="p-1.5 hover:bg-red-50 rounded-md"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div>
@@ -234,6 +328,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
               />
             </div>
           </div>
+          <div className="mb-6" />
 
           {/* Tarjetas resumen */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -285,6 +380,7 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Cliente</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Dirección</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Método</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Domicilio</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Total</th>
                     </tr>
                   </thead>
@@ -300,6 +396,9 @@ export function DeliveryCashClose({ onClose }: DeliveryCashCloseProps) {
                           }`}>
                             {order.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-700">
+                          ${(Number(order.deliveryFee) || 0).toLocaleString('es-CO')}
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-gray-900">
                           ${(Number(order.total) || 0).toLocaleString('es-CO')}

@@ -117,6 +117,16 @@ export const orderStore = {
       console.error("Error al asignar domiciliario:", error);
     }
   },
+  async updateOrder(orderId: string, updates: Partial<Order>): Promise<void> {
+    try {
+      const orderRef = doc(db, 'pedidos', orderId);
+      const { id, createdAt, orderNumber, displayId, ...safeUpdates } = updates as any;
+      await updateDoc(orderRef, safeUpdates);
+    } catch (error) {
+      console.error("Error al editar pedido:", error);
+      throw error;
+    }
+  },
   async deleteOrder(orderId: string): Promise<void> {
     try {
       const orderRef = doc(db, 'pedidos', orderId);
