@@ -1,0 +1,144 @@
+rules_version = '2';
+
+// Reglas del Sistema de Domicilios | Asadero Ventilador
+// Roles: 'admin' y 'cajero' (documento usuarios/{uid}).
+// Despliegue: firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return /databases/$(database)/documents/usuarios/$(request.auth.uid);
+    }
+    function isActive() {
+      return signedIn() && exists(userDoc()) && get(userDoc()).data.active == true;
+    }
+    function isAdmin() {
+      return isActive() && get(userDoc()).data.role == 'admin';
+    }
+    function cajaPath(cajaId) {
+      return /databases/$(database)/documents/cajas/$(cajaId);
+    }
+    function cajaOpen(cajaId) {
+      return !exists(cajaPath(cajaId)) || get(cajaPath(cajaId)).data.status != 'cerrada';
+    }
+    function salePath(saleId) {
+      return /databases/$(database)/documents/ventas_pos/$(saleId);
+    }
+
+    // ---------- Usuarios ----------
+    match /usuarios/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      // Primer administrador: solo mientras no exista config/setup, y creándolo en el mismo lote.
+      allow create: if isAdmin()
+        || (signedIn() && request.auth.uid == uid
+            && request.resource.data.role == 'admin'
+            && request.resource.data.active == true
+            && !exists(/databases/$(database)/documents/config/setup)
+            && existsAfter(/databases/$(database)/documents/config/setup));
+      // Un admin no puede quitarse el rol ni desactivarse a sí mismo (evita quedarse sin admins).
+      allow update: if isAdmin() && request.auth.uid != uid;
+      allow delete: if false;
+    }
+
+    // ---------- Configuración ----------
+    match /config/setup {
+      allow read: if true; // solo indica si ya existe un administrador
+      allow create: if signedIn()
+        && request.resource.data.adminUid == request.auth.uid
+        && getAfter(userDoc()).data.role == 'admin';
+      allow update, delete: if false;
+    }
+    match /config/ventas {
+      allow read: if isActive();
+      // El consecutivo de facturas solo puede avanzar de uno en uno.
+      allow create: if isActive() && request.resource.data.lastSaleNumber == 1;
+      allow update: if isActive()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSaleNumber'])
+        && request.resource.data.lastSaleNumber == resource.data.lastSaleNumber + 1;
+    }
+    match /config/negocio {
+      allow read: if isActive();
+      allow write: if isAdmin();
+    }
+    // Documentos que ya usaba la app (contador de pedidos, domiciliarios ocultos)
+    match /config/counters {
+      allow read, write: if isActive();
+    }
+    match /config/domiciliariosOcultos {
+      allow read, write: if isActive();
+    }
+
+    // ---------- Inventario ----------
+    match /productos/{productId} {
+      allow read: if isActive();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isActive() && isSaleDecrement(productId));
+    }
+
+    // Lo único que un cajero puede hacer con un producto: descontar exactamente
+    // lo que lleva una venta nueva que se crea en la misma transacción.
+    function isSaleDecrement(productId) {
+      let after = request.resource.data;
+      let saleId = after.lastSaleId;
+      return after.diff(resource.data).affectedKeys().hasOnly(['stock', 'lastSaleId'])
+        && after.stock is int
+        && after.stock >= 0
+        && saleId is string
+        && !exists(salePath(saleId))
+        && existsAfter(salePath(saleId))
+        && resource.data.stock - after.stock == getAfter(salePath(saleId)).data.qty[productId];
+    }
+
+    match /movimientos_inventario/{id} {
+      allow read: if isActive();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------- Ventas POS (facturas) ----------
+    match /ventas_pos/{saleId} {
+      allow read: if isActive();
+      allow create: if isActive()
+        && request.resource.data.cashierUid == request.auth.uid
+        && request.resource.data.status == 'activa'
+        && request.resource.data.total is number
+        && request.resource.data.total > 0
+        && request.resource.data.paymentMethod in ['efectivo', 'transferencia', 'nequi', 'daviplata']
+        && request.resource.data.number == getAfter(/databases/$(database)/documents/config/ventas).data.lastSaleNumber
+        && cajaOpen(request.resource.data.cajaId);
+      // Solo el admin anula; las facturas nunca se borran.
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ---------- Caja (base y cierre) ----------
+    match /cajas/{cajaId} {
+      allow read: if isActive();
+      allow write: if isAdmin();
+    }
+
+    match /gastos/{id} {
+      allow read: if isActive();
+      allow create: if isActive()
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && cajaOpen(request.resource.data.cajaId);
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- Módulos existentes (pedidos, mesas, ventas de mesas) ----------
+    match /pedidos/{id} {
+      allow read, write: if isActive();
+    }
+    match /mesas/{id} {
+      allow read, write: if isActive();
+    }
+    match /ventas/{id} {
+      allow read, write: if isActive();
+    }
+  }
+}
