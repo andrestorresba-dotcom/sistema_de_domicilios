@@ -92,6 +92,26 @@ service cloud.firestore {
         && resource.data.stock - after.stock == getAfter(salePath(saleId)).data.qty[productId];
     }
 
+    // Inventario compartido (pollo entero en cuartos): solo el admin lo ajusta;
+    // una venta solo puede descontar exactamente lo que registra en insumoQty.
+    match /insumos/{insumoId} {
+      allow read: if isActive();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isActive() && isInsumoSaleDecrement(insumoId));
+    }
+
+    function isInsumoSaleDecrement(insumoId) {
+      let after = request.resource.data;
+      let saleId = after.lastSaleId;
+      return after.diff(resource.data).affectedKeys().hasOnly(['stock', 'lastSaleId'])
+        && after.stock is int
+        && after.stock >= 0
+        && saleId is string
+        && !exists(salePath(saleId))
+        && existsAfter(salePath(saleId))
+        && resource.data.stock - after.stock == getAfter(salePath(saleId)).data.insumoQty[insumoId];
+    }
+
     match /movimientos_inventario/{id} {
       allow read: if isActive();
       allow create: if isAdmin();

@@ -20,6 +20,7 @@ await env.withSecurityRulesDisabled(async ctx => {
   await setDoc(doc(db, 'usuarios/inactivo'), { name: 'X', username: 'x', role: 'cajero', active: false });
   await setDoc(doc(db, 'productos/P001'), { name: '1/4', category: 'Pollo', price: 12000, stock: 10, minStock: 2, active: true });
   await setDoc(doc(db, 'pedidos/PED-0001'), { total: 1 });
+  await setDoc(doc(db, 'insumos/POLLO'), { name: 'Pollo', unit: 'pollos', parts: 4, stock: 160, minStock: 20 });
 });
 
 const anon = env.unauthenticatedContext().firestore();
@@ -85,6 +86,26 @@ await t('cajero NO borra factura', () => assertFails(deleteDoc(doc(caj, 'ventas_
 await t('admin anula factura', () => assertSucceeds(updateDoc(doc(admin, 'ventas_pos/VTA-00001'), { status: 'anulada' })));
 await t('admin tampoco borra factura', () => assertFails(deleteDoc(doc(admin, 'ventas_pos/VTA-00001'))));
 
+// --- Inventario compartido de pollos (en cuartos) ---
+function polloSale(db, n, cuartos, stockAfter) {
+  const id = `VTA-${String(n).padStart(5, '0')}`;
+  const b = writeBatch(db);
+  b.set(doc(db, 'config/ventas'), { lastSaleNumber: n }, { merge: true });
+  b.update(doc(db, 'insumos/POLLO'), { stock: stockAfter, lastSaleId: id });
+  b.set(doc(db, `ventas_pos/${id}`), {
+    number: n, cajaId: TODAY, items: [], qty: { P002: 1, P001: 1 }, insumoQty: { POLLO: cuartos }, total: 30000,
+    paymentMethod: 'nequi', cashierUid: 'cajero', cashierName: 'Caja', status: 'activa',
+  });
+  return b.commit();
+}
+await t('cajero lee el inventario de pollos', () => assertSucceeds(getDoc(doc(caj, 'insumos/POLLO'))));
+await t('venta de ½ + ¼ descuenta ¾ de pollo (40 → 39¼)', () => assertSucceeds(polloSale(caj, 2, 3, 157)));
+await t('venta que descuenta más pollo del vendido es rechazada', () => assertFails(polloSale(caj, 3, 3, 150)));
+await t('cajero NO suma pollos', () => assertFails(updateDoc(doc(caj, 'insumos/POLLO'), { stock: 400 })));
+await t('cajero NO cambia la alerta', () => assertFails(updateDoc(doc(caj, 'insumos/POLLO'), { minStock: 0 })));
+await t('cajero NO crea otro inventario compartido', () => assertFails(setDoc(doc(caj, 'insumos/PAPA'), { stock: 1 })));
+await t('admin registra entrada de pollos', () => assertSucceeds(updateDoc(doc(admin, 'insumos/POLLO'), { stock: 197 })));
+
 // --- Caja y gastos ---
 await t('cajero NO fija base de caja', () => assertFails(setDoc(doc(caj, `cajas/${TODAY}`), { base: 1, status: 'abierta' })));
 await t('admin fija base de caja', () => assertSucceeds(setDoc(doc(admin, `cajas/${TODAY}`), { base: 200000, status: 'abierta' })));
@@ -97,7 +118,8 @@ await t('cajero NO borra gasto', () => assertFails(deleteDoc(doc(caj, `gastos/${
 await t('cajero NO edita gasto', () => assertFails(updateDoc(doc(caj, `gastos/${gastoId}`), { amount: 1 })));
 await t('cajero NO cierra caja', () => assertFails(updateDoc(doc(caj, `cajas/${TODAY}`), { status: 'cerrada' })));
 await t('admin cierra caja', () => assertSucceeds(updateDoc(doc(admin, `cajas/${TODAY}`), { status: 'cerrada' })));
-await t('con caja cerrada no se puede vender', () => assertFails(sale(caj, 2, 1, 7)));
+await t('con caja cerrada no se puede vender', () => assertFails(sale(caj, 3, 1, 7)));
+await t('con caja cerrada no se puede vender pollo', () => assertFails(polloSale(caj, 3, 1, 196)));
 await t('con caja cerrada no se pueden agregar gastos', () =>
   assertFails(addDoc(collection(caj, 'gastos'), { cajaId: TODAY, description: 'x', amount: 1, responsible: 'C', createdByUid: 'cajero' })));
 await t('cajero NO edita datos de la factura', () => assertFails(setDoc(doc(caj, 'config/negocio'), { nit: '1' })));

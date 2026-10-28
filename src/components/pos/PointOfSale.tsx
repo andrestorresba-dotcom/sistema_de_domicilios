@@ -6,13 +6,17 @@ import { getFormattedTime } from '../../lib/orderStore';
 import {
   CATEGORIES,
   PAYMENT_METHODS,
+  POLLO_ID,
   SaleError,
   createSale,
   formatMoney,
   saveBusinessInfo,
   todayCajaId,
+  availableUnits,
+  formatParts,
   useBusinessInfo,
   useCaja,
+  useInsumos,
   useProducts,
   useSales,
   voidSale,
@@ -36,6 +40,7 @@ export function PointOfSale() {
   const { profile, isAdmin } = useAuth();
   const cajaId = todayCajaId();
   const { products, loading } = useProducts();
+  const insumos = useInsumos();
   const sales = useSales(cajaId);
   const caja = useCaja(cajaId);
   const business = useBusinessInfo();
@@ -65,10 +70,35 @@ export function PointOfSale() {
 
   const inCart = (id: string) => cart.find(it => it.productId === id)?.quantity ?? 0;
 
+  // Partes de cada inventario compartido que quedan después de lo que ya está en la orden
+  const partsLeft = useMemo(() => {
+    const left: Record<string, number> = {};
+    Object.values(insumos).forEach(i => (left[i.id] = i.stock));
+    cart.forEach(it => {
+      const p = products.find(x => x.id === it.productId);
+      if (p?.insumoId && p.insumoParts) left[p.insumoId] = (left[p.insumoId] ?? 0) - it.quantity * p.insumoParts;
+    });
+    return left;
+  }, [cart, insumos, products]);
+
+  /** Cuántas unidades más de este producto se pueden agregar a la orden */
+  const canStillAdd = (p: Product) => (p.insumoId ? availableUnits(p, insumos, partsLeft) : p.stock - inCart(p.id));
+
+  const noStockMessage = (p: Product) => {
+    const ins = p.insumoId ? insumos[p.insumoId] : undefined;
+    if (ins) {
+      const left = Math.max(0, partsLeft[ins.id] ?? 0);
+      return left <= 0
+        ? `Ya no queda ${ins.name.toLowerCase()} para ${p.name}`
+        : `Solo queda ${formatParts(left, ins.parts)} de ${ins.name.toLowerCase()}: no alcanza para ${p.name}`;
+    }
+    return p.stock <= 0 ? `${p.name} está agotado` : `Solo quedan ${p.stock} de ${p.name}`;
+  };
+
   const add = (p: Product) => {
     if (closed) return;
-    if (inCart(p.id) >= p.stock) {
-      toast.warning(p.stock <= 0 ? `${p.name} está agotado` : `Solo quedan ${p.stock} de ${p.name}`);
+    if (canStillAdd(p) <= 0) {
+      toast.warning(noStockMessage(p));
       return;
     }
     setCart(prev =>
@@ -85,8 +115,8 @@ export function PointOfSale() {
         .map(it => {
           if (it.productId !== id) return it;
           const q = it.quantity + delta;
-          if (p && q > p.stock) {
-            toast.warning(`Solo quedan ${p.stock} de ${p.name}`);
+          if (p && delta > 0 && canStillAdd(p) <= 0) {
+            toast.warning(noStockMessage(p));
             return it;
           }
           return { ...it, quantity: q };
@@ -177,11 +207,16 @@ export function PointOfSale() {
                 <div className={`flex items-center gap-2 px-6 py-4 border-b border-gray-100 ${st.header}`}>
                   <Icon className="w-5 h-5 text-amber-600" />
                   <h3 className="font-semibold text-gray-900">{st.title}</h3>
+                  {cat === 'Pollo' && insumos[POLLO_ID] && (
+                    <span className="ml-auto text-sm text-amber-800">
+                      Quedan <b>{formatParts(Math.max(0, partsLeft[POLLO_ID] ?? 0), insumos[POLLO_ID].parts)}</b> {insumos[POLLO_ID].unit}
+                    </span>
+                  )}
                 </div>
                 <div className={`p-5 grid gap-4 ${cat === 'Pollo' ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>
                   {list.map(p => {
-                    const left = p.stock - inCart(p.id);
-                    const out = p.stock <= 0;
+                    const left = Math.max(0, canStillAdd(p));
+                    const out = availableUnits(p, insumos) <= 0;
                     return (
                       <button
                         key={p.id}
@@ -192,8 +227,8 @@ export function PointOfSale() {
                         <div className="text-xs font-mono text-gray-400">{p.id}</div>
                         <div className="font-semibold text-gray-900 mt-1">{p.name}</div>
                         <div className="font-bold text-amber-600 mt-1">{formatMoney(p.price)}</div>
-                        <div className={`text-xs mt-1 ${out ? 'text-red-600 font-medium' : left <= p.minStock ? 'text-amber-600' : 'text-gray-400'}`}>
-                          {out ? 'Agotado' : `${left} disponibles`}
+                        <div className={`text-xs mt-1 ${out ? 'text-red-600 font-medium' : left <= (p.insumoId && p.insumoParts ? Math.floor((insumos[p.insumoId]?.minStock ?? 0) / p.insumoParts) : p.minStock) ? 'text-amber-600' : 'text-gray-400'}`}>
+                          {out ? 'Agotado' : `${left} disponible${left === 1 ? '' : 's'}`}
                         </div>
                         {inCart(p.id) > 0 && (
                           <span className="absolute top-2 right-2 min-w-6 h-6 px-1.5 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center">
