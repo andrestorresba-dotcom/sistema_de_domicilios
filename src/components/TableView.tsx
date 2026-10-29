@@ -10,42 +10,82 @@ export function TableView() {
   const [selectedFloor, setSelectedFloor] = useState<1 | 2>(1);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
 
-  // 🎯 EFECTO 1: Escuchar el Escáner de Códigos de Barra (Ubicado correctamente dentro del componente)
+  // Lo último que envió el lector, para ver en pantalla si está leyendo bien
+  const [lastScan, setLastScan] = useState<{ code: string; enter: boolean; at: number } | null>(null);
+
+  // 🎯 EFECTO 1: Escuchar el lector de códigos de barras
+  // El lector funciona como un teclado: "escribe" el número muy rápido y termina con Enter (o Tab).
   useEffect(() => {
+    // Máximo tiempo entre teclas de una misma lectura. Antes era 50 ms y algunos
+    // lectores (o el lector conectado por un hub USB) son más lentos: la lectura se
+    // partía, se perdía el Enter y la mesa no se liberaba.
+    const MAX_GAP_MS = 150;
+    // Si el lector no envía Enter, mostramos el aviso pasado este tiempo
+    const NO_SUFFIX_MS = 400;
+
     let scannedBuffer = '';
-    let lastKeyTime = Date.now();
+    let lastKeyTime = 0;
+    let noSuffixTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const isTypingField = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+    };
+
+    // Toma el dígito por la tecla física, así no importa la distribución del teclado
+    // ni si el lector usa los números de arriba o los del teclado numérico.
+    const digitFrom = (e: KeyboardEvent) => {
+      const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
+      if (m) return m[1];
+      return e.key >= '0' && e.key <= '9' && e.key.length === 1 ? e.key : null;
+    };
+
+    const finish = async (code: string, enter: boolean) => {
+      setLastScan({ code, enter, at: Date.now() });
+      if (!enter) return;
+      const tableNumberScanned = parseInt(code, 10);
+      // Validamos que el número leído corresponda al rango de mesas (1 a 42)
+      if (!isNaN(tableNumberScanned) && tableNumberScanned >= 1 && tableNumberScanned <= 42) {
+        if (window.confirm(`¿Confirmar pago y liberar automáticamente la Mesa #${tableNumberScanned}?`)) {
+          await autoCompleteAndReleaseTable(tableNumberScanned);
+        }
+      }
+    };
 
     const handleKeyDown = async (e: KeyboardEvent) => {
-      const currentTime = Date.now();
-      
-      // ⚡ Si pasa más de 50ms entre teclas, detecta que es un humano escribiendo y lo ignora.
-      if (currentTime - lastKeyTime > 50) {
-        scannedBuffer = ''; 
-      }
-      lastKeyTime = currentTime;
+      // Si alguien está escribiendo en un campo (nombre, cantidad, observaciones…), no es el lector.
+      if (isTypingField(e.target)) return;
 
-      // Cuando el lector termina de leer el código de barras, siempre envía un "Enter"
-      if (e.key === 'Enter') {
+      const now = Date.now();
+      if (now - lastKeyTime > MAX_GAP_MS) scannedBuffer = '';
+      lastKeyTime = now;
+
+      // El lector terminó de leer
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        clearTimeout(noSuffixTimer);
         if (scannedBuffer.length > 0) {
-          const tableNumberScanned = parseInt(scannedBuffer);
-          
-          // Validamos que el número leído corresponda a tu rango de mesas (1 a 42)
-          if (!isNaN(tableNumberScanned) && tableNumberScanned >= 1 && tableNumberScanned <= 42) {
-            
-            // Confirmación rápida en pantalla antes de proceder a la liberación automática
-            if (window.confirm(`¿Confirmar pago y liberar automáticamente la Mesa #${tableNumberScanned}?`)) {
-              await autoCompleteAndReleaseTable(tableNumberScanned);
-            }
-            
-          }
-          scannedBuffer = ''; // Limpiamos el acumulador para la siguiente lectura
+          e.preventDefault();
+          const code = scannedBuffer;
+          scannedBuffer = '';
+          await finish(code, true);
         }
         return;
       }
 
-      // Vamos atrapando los números correlativos que arroja el láser
-      if (e.key >= '0' && e.key <= '9') {
-        scannedBuffer += e.key;
+      const digit = digitFrom(e);
+      if (digit) {
+        scannedBuffer += digit;
+        clearTimeout(noSuffixTimer);
+        // Si no llega Enter, avisamos en pantalla que el lector no lo está enviando
+        noSuffixTimer = setTimeout(() => {
+          if (scannedBuffer) {
+            const code = scannedBuffer;
+            scannedBuffer = '';
+            finish(code, false);
+          }
+        }, NO_SUFFIX_MS);
       }
     };
 
@@ -91,9 +131,12 @@ export function TableView() {
 
     // Escuchamos el teclado en toda la pantalla
     window.addEventListener('keydown', handleKeyDown);
-    
+
     // Limpieza del evento para evitar duplicados en memoria
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(noSuffixTimer);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // 🛰️ EFECTO 2: Escucha las mesas en tiempo real (Para ponerlas rojas o verdes)
@@ -203,6 +246,7 @@ export function TableView() {
         <div>
           <h2 className="font-bold text-2xl text-gray-900">Vista de Mesas</h2>
           <p className="text-sm text-gray-600">Gestión de mesas del restaurante.</p>
+          <ScanStatus lastScan={lastScan} />
         </div>
         <div className="flex gap-2">
           <button
@@ -275,5 +319,24 @@ export function TableView() {
         />
       )}
     </div>
+  );
+}
+function ScanStatus({ lastScan }: { lastScan: { code: string; enter: boolean; at: number } | null }) {
+  if (!lastScan) {
+    return <p className="mt-1 text-xs text-gray-400">Lector de código de barras: listo. Escanea el ticket para liberar la mesa.</p>;
+  }
+  const time = new Date(lastScan.at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  if (lastScan.enter) {
+    return (
+      <p className="mt-1 text-xs text-green-700">
+        Lector: leyó <b>{lastScan.code}</b> a las {time}.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-xs text-red-700">
+      Lector: leyó <b>{lastScan.code}</b> pero no envió Enter, por eso no se liberó la mesa. Configura el lector
+      para que agregue Enter (CR) al final de cada lectura.
+    </p>
   );
 }
