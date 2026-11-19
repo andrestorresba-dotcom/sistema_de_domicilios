@@ -1,7 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 import { useAuth, authErrorMessage } from '../../lib/auth';
 import { btnPrimary, inputCls } from './shared';
+
+// El fondo 3D se descarga solo cuando se abre el login
+const RotisserieBackground = lazy(() => import('./RotisserieBackground'));
 
 export function LoginScreen() {
   const { login, needsSetup, setupFirstAdmin } = useAuth();
@@ -39,8 +42,15 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <form onSubmit={submit} className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-sm p-7">
+    <div
+      className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden"
+      style={{ background: 'radial-gradient(ellipse at 50% 110%, #7a2e0a 0%, #2a1208 45%, #0d0705 80%)' }}
+    >
+      <Suspense fallback={null}>
+        <RotisserieBackground />
+      </Suspense>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, rgba(13,7,5,0) 35%, rgba(13,7,5,.55) 100%)' }} />
+      <form onSubmit={submit} className="relative z-10 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl ring-1 ring-white/20 w-full max-w-sm p-7">
         <div className="flex flex-col items-center text-center mb-6">
           <img src="/logo-ventilador.png" alt="Asadero de Pollo Ventilador" className="h-44 w-auto mb-2 drop-shadow" />
           <p className="text-sm text-gray-500">Sistema de Gestión Integral</p>
