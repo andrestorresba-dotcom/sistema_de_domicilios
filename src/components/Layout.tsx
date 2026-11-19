@@ -15,6 +15,7 @@ import {
   LogOut,
   Shield,
   User,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { useAuth, ROLE_LABEL } from '../lib/auth';
 
@@ -30,6 +31,7 @@ const NAV = [
   { to: '/inventario', label: 'Inventario', icon: Package },
   { to: '/pos', label: 'POS', icon: ShoppingCart },
   { to: '/cierre-caja', label: 'Cierre Caja', icon: Landmark },
+  { to: '/menu', label: 'Menú del día', icon: UtensilsCrossed },
   { to: '/usuarios', label: 'Usuarios', icon: Users, adminOnly: true },
 ];
 

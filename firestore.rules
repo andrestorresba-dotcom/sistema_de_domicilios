@@ -63,6 +63,11 @@ service cloud.firestore {
       allow read: if isActive();
       allow write: if isAdmin();
     }
+    // Configuración de la carta y corriente del día: pública para la carta digital.
+    match /config/carta {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     // Documentos que ya usaba la app (contador de pedidos, domiciliarios ocultos)
     match /config/counters {
       allow read, write: if isActive();
@@ -95,7 +100,8 @@ service cloud.firestore {
     // Inventario compartido (pollo entero en cuartos): solo el admin lo ajusta;
     // una venta solo puede descontar exactamente lo que registra en insumoQty.
     match /insumos/{insumoId} {
-      allow read: if isActive();
+      // El stock de pollo es público para marcar "agotado" en la carta digital.
+      allow read: if isActive() || insumoId == 'POLLO';
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (isActive() && isInsumoSaleDecrement(insumoId));
     }
@@ -116,6 +122,18 @@ service cloud.firestore {
       allow read: if isActive();
       allow create: if isAdmin();
       allow update, delete: if false;
+    }
+
+    // ---------- Carta digital ----------
+    // Cualquiera la lee (clientes); solo el admin crea, edita y borra platos.
+    // Cualquier usuario activo puede marcar un plato disponible / agotado.
+    match /carta/{itemId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isActive()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['available'])
+            && request.resource.data.available is bool);
     }
 
     // ---------- Ventas POS (facturas) ----------

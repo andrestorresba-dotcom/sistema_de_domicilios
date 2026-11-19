@@ -1,6 +1,6 @@
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { subscribeToOrders } from './lib/orderStore';
 import { orderStore } from './lib/orderStore';
@@ -32,7 +32,18 @@ function Gate() {
   return <AuthenticatedApp />;
 }
 
+// Páginas públicas (clientes, sin iniciar sesión)
+const PublicCarta = lazy(() => import('./components/carta/PublicCarta'));
+const isPublicCarta = () => /^\/carta\/?$/.test(window.location.pathname);
+
 function App() {
+  if (isPublicCarta()) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-[#faf7f2]" />}>
+        <PublicCarta />
+      </Suspense>
+    );
+  }
   return (
     <AuthProvider>
       <Gate />

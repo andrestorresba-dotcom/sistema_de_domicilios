@@ -128,6 +128,24 @@ await t('cajero NO edita datos de la factura', () => assertFails(setDoc(doc(caj,
 await t('cajero sigue usando pedidos', () => assertSucceeds(updateDoc(doc(caj, 'pedidos/PED-0001'), { status: 'preparing' })));
 await t('cajero sigue usando mesas', () => assertSucceeds(setDoc(doc(caj, 'mesas/1'), { items: [] })));
 
+// --- Carta digital ---
+await t('admin crea plato en la carta', () =>
+  assertSucceeds(setDoc(doc(admin, 'carta/mojarra-frita'), { name: 'Mojarra Frita', category: 'Especiales', price: 24000, recargo: true, available: true, order: 1, description: '' })));
+await t('cliente sin sesión lee la carta', () => assertSucceeds(getDoc(doc(anon, 'carta/mojarra-frita'))));
+await t('cliente sin sesión lee el corriente del día', () => assertSucceeds(getDoc(doc(anon, 'config/carta'))));
+await t('cliente sin sesión ve el stock de pollo', () => assertSucceeds(getDoc(doc(anon, 'insumos/POLLO'))));
+await t('cliente sin sesión NO ve otros insumos', () => assertFails(getDoc(doc(anon, 'insumos/OTRO'))));
+await t('cliente sin sesión NO modifica la carta', () => assertFails(updateDoc(doc(anon, 'carta/mojarra-frita'), { price: 1 })));
+await t('cliente sin sesión NO marca agotado', () => assertFails(updateDoc(doc(anon, 'carta/mojarra-frita'), { available: false })));
+await t('cajero marca un plato agotado', () => assertSucceeds(updateDoc(doc(caj, 'carta/mojarra-frita'), { available: false })));
+await t('cajero NO cambia precios de la carta', () => assertFails(updateDoc(doc(caj, 'carta/mojarra-frita'), { price: 1000 })));
+await t('cajero NO cambia precio junto con disponible', () => assertFails(updateDoc(doc(caj, 'carta/mojarra-frita'), { available: true, price: 1000 })));
+await t('cajero NO crea platos', () => assertFails(setDoc(doc(caj, 'carta/x'), { name: 'x', price: 1 })));
+await t('cajero NO borra platos', () => assertFails(deleteDoc(doc(caj, 'carta/mojarra-frita'))));
+await t('cajero NO publica el menú del día', () => assertFails(setDoc(doc(caj, 'config/carta'), { sopa: 'x' }, { merge: true })));
+await t('admin publica el menú del día', () => assertSucceeds(setDoc(doc(admin, 'config/carta'), { sopa: 'Sancocho', principios: ['Fríjol'] }, { merge: true })));
+await t('admin borra plato', () => assertSucceeds(deleteDoc(doc(admin, 'carta/mojarra-frita'))));
+
 console.log(`\n${pass} pasaron, ${fail} fallaron`);
 await env.cleanup();
 process.exit(fail ? 1 : 0);
