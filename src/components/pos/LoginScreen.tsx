@@ -42,8 +42,7 @@ export function LoginScreen() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <form onSubmit={submit} className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-sm p-7">
         <div className="flex flex-col items-center text-center mb-6">
-          <img src="/logoasadero copy.png" alt="" className="h-16 w-auto mb-3" />
-          <h1 className="font-bold text-gray-900">ASADERO DE POLLO VENTILADOR</h1>
+          <img src="/logo-ventilador.png" alt="Asadero de Pollo Ventilador" className="h-44 w-auto mb-2 drop-shadow" />
           <p className="text-sm text-gray-500">Sistema de Gestión Integral</p>
         </div>
 

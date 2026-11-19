@@ -48,17 +48,18 @@ export function Layout() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <img
-                src="/logoasadero copy.png"
-                alt="Logo Asadero"
-                className="h-16 w-auto"
+                src="/logo-ventilador.png"
+                alt="Asadero de Pollo Ventilador"
+                className="h-20 sm:h-24 w-auto drop-shadow-sm"
               />
-              <div>
-                <h1 className="font-bold text-gray-900">ASADERO DE POLLO VENTILADOR</h1>
-                <p className="text-sm text-gray-500">Sistema de Gestión Integral</p>
+              <div className="hidden sm:block">
+                <h1 className="sr-only">Asadero de Pollo Ventilador</h1>
+                <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">Sistema de Gestión</p>
+                <p className="text-lg font-bold text-gray-900 leading-tight">Integral</p>
               </div>
             </div>
             {profile && (
