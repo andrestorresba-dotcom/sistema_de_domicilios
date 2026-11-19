@@ -53,11 +53,6 @@ export function Dashboard() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <img
-            src="/logoasadero copy.png"
-            alt="Logo Asadero"
-            className="h-24 w-auto object-contain"
-          />
           <div>
             <h2 className="font-bold text-2xl text-gray-900">Tablero de Pedidos</h2>
             <p className="text-sm text-gray-600">Vista general del estado de todos los pedidos.</p>
