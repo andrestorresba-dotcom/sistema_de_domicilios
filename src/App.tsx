@@ -34,15 +34,22 @@ function Gate() {
 
 // Páginas públicas (clientes, sin iniciar sesión)
 const PublicCarta = lazy(() => import('./components/carta/PublicCarta'));
-const isPublicCarta = () => /^\/carta\/?$/.test(window.location.pathname);
+const MesaPage = lazy(() => import('./components/pedidos/MesaPage'));
+const PedirPage = lazy(() => import('./components/pedidos/PedirPage'));
+
+function publicPage() {
+  const path = window.location.pathname;
+  if (/^\/carta\/?$/.test(path)) return <PublicCarta />;
+  if (/^\/pedir\/?$/.test(path)) return <PedirPage />;
+  const mesa = /^\/mesa\/(\d+)\/?$/.exec(path);
+  if (mesa) return <MesaPage mesa={Number(mesa[1])} />;
+  return null;
+}
 
 function App() {
-  if (isPublicCarta()) {
-    return (
-      <Suspense fallback={<div className="min-h-screen bg-[#faf7f2]" />}>
-        <PublicCarta />
-      </Suspense>
-    );
+  const page = publicPage();
+  if (page) {
+    return <Suspense fallback={<div className="min-h-screen bg-[#faf7f2]" />}>{page}</Suspense>;
   }
   return (
     <AuthProvider>

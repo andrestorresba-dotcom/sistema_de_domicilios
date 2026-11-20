@@ -223,10 +223,13 @@ export default function PublicCarta() {
         {!loading && items.length > 0 && (
           <div className="rounded-2xl bg-stone-900 text-white p-5 text-center">
             <p className="font-semibold">¿Quieres pedir a domicilio?</p>
-            <p className="text-sm text-white/70 mt-1">Escríbenos y te lo llevamos.</p>
+            <p className="text-sm text-white/70 mt-1">Haz tu pedido aquí mismo, o para recoger en el local.</p>
+            <a href="/pedir" className="mt-4 inline-flex items-center gap-2 rounded-full bg-white text-stone-900 font-semibold px-5 py-2.5">
+              Hacer mi pedido
+            </a>
             <a
               href={`https://wa.me/${WHATSAPP}?text=${encodeURIComponent('Hola, quiero hacer un pedido')}`}
-              className="mt-4 inline-flex items-center gap-2 rounded-full bg-white text-stone-900 font-semibold px-5 py-2.5"
+              className="mt-3 flex items-center justify-center gap-2 text-sm text-white/70"
             >
               <MessageCircle className="w-4 h-4" /> WhatsApp 301 550 1038
             </a>

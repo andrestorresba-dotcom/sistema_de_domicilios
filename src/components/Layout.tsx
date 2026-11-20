@@ -16,12 +16,16 @@ import {
   Shield,
   User,
   UtensilsCrossed,
+  Globe,
 } from 'lucide-react';
+import { WebOrdersWatcher } from './pedidos/WebOrdersWatcher';
+import { useActiveWebOrders, useLlamadas } from '../lib/webOrders';
 import { useAuth, ROLE_LABEL } from '../lib/auth';
 
 const NAV = [
   { to: '/', label: 'Panel', icon: Home },
   { to: '/new-order', label: 'Pedido', icon: PlusCircle },
+  { to: '/pedidos-web', label: 'Pedidos web', icon: Globe },
   { to: '/tables', label: 'Mesas', icon: Table },
   { to: '/statistics', label: 'Estadísticas', icon: BarChart3 },
   { to: '/kitchen', label: 'Cocina', icon: ChefHat },
@@ -38,6 +42,12 @@ const NAV = [
 export function Layout() {
   const location = useLocation();
   const { profile, isAdmin, logout } = useAuth();
+  const webOrders = useActiveWebOrders();
+  const llamadas = useLlamadas();
+  const badges: Record<string, number> = {
+    '/pedidos-web': webOrders.filter(o => o.status === 'por-confirmar' || o.status === 'esperando-pago').length,
+    '/tables': webOrders.filter(o => o.status === 'por-aceptar').length + llamadas.length,
+  };
 
   const isActive = (path: string) => {
     if (path === '/') {
@@ -109,6 +119,11 @@ export function Layout() {
               >
                 <Icon className="w-4 h-4" />
                 {label}
+                {badges[to] > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-xs font-bold grid place-items-center" aria-label={`${badges[to]} pendientes`}>
+                    {badges[to]}
+                  </span>
+                )}
               </Link>
             ))}
           </div>
@@ -116,6 +131,7 @@ export function Layout() {
       </nav>
 
       {/* Main Content */}
+      <WebOrdersWatcher />
       <main>
         <Outlet />
       </main>

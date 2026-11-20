@@ -55,6 +55,11 @@ export interface CartaConfig {
   nota: string;
   publishedAt?: any;
   publishedBy?: string;
+  /** Horario de pedidos por la web (hora de Colombia, "HH:MM") */
+  abre: string;
+  cierra: string;
+  /** auto = según horario; abierto / cerrado = forzado a mano */
+  pedidosWeb: 'auto' | 'abierto' | 'cerrado';
 }
 
 export const DEFAULT_CONFIG: CartaConfig = {
@@ -64,7 +69,27 @@ export const DEFAULT_CONFIG: CartaConfig = {
   principios: [],
   jugo: '',
   nota: '',
+  abre: '11:00',
+  cierra: '21:00',
+  pedidosWeb: 'auto',
 };
+
+/** Hora actual en Colombia como "HH:MM" */
+export const bogotaHM = (d = new Date()) =>
+  d.toLocaleTimeString('en-GB', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: false });
+
+/** ¿Se reciben pedidos por la web ahora? */
+export function isOpenNow(cfg: CartaConfig, d = new Date()) {
+  if (cfg.pedidosWeb === 'abierto') return true;
+  if (cfg.pedidosWeb === 'cerrado') return false;
+  const now = bogotaHM(d);
+  const { abre, cierra } = cfg;
+  return abre <= cierra ? now >= abre && now < cierra : now >= abre || now < cierra;
+}
+
+export async function saveHorario(data: Pick<CartaConfig, 'abre' | 'cierra' | 'pedidosWeb'>) {
+  await setDoc(doc(db, 'config', 'carta'), data, { merge: true });
+}
 
 export const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 export const DAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];

@@ -41,6 +41,7 @@ import {
   type CartaConfig,
   type CartaItem,
 } from '../../lib/cartaStore';
+import { PedidosWebCard } from './PedidosWebCard';
 import { printMenuMesa, renderWhatsappImage, shareOrDownload } from '../../lib/cartaPrint';
 import { getDateFromTimestamp } from '../../lib/orderStore';
 import { Card, Modal, PageHeader, ReadOnlyBadge, btnDanger, btnPrimary, btnSecondary, inputCls, parseMoney } from '../pos/shared';
@@ -335,6 +336,8 @@ function TodayTab({
             El menú impreso usa precios de mesa. La imagen de WhatsApp usa precios para llevar (+{formatCOP(cfg.recargoLlevar)} en almuerzos; el pollo asado y las bebidas no cambian). Publica primero para que salgan la sopa y los principios.
           </p>
         </Card>
+
+        <PedidosWebCard cfg={cfg} isAdmin={isAdmin} />
       </div>
 
       <div className="lg:col-span-2">
