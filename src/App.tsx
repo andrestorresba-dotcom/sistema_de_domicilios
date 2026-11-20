@@ -1,6 +1,6 @@
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { subscribeToOrders } from './lib/orderStore';
 import { orderStore } from './lib/orderStore';
@@ -32,7 +32,25 @@ function Gate() {
   return <AuthenticatedApp />;
 }
 
+// Páginas públicas (clientes, sin iniciar sesión)
+const PublicCarta = lazy(() => import('./components/carta/PublicCarta'));
+const MesaPage = lazy(() => import('./components/pedidos/MesaPage'));
+const PedirPage = lazy(() => import('./components/pedidos/PedirPage'));
+
+function publicPage() {
+  const path = window.location.pathname;
+  if (/^\/carta\/?$/.test(path)) return <PublicCarta />;
+  if (/^\/pedir\/?$/.test(path)) return <PedirPage />;
+  const mesa = /^\/mesa\/(\d+)\/?$/.exec(path);
+  if (mesa) return <MesaPage mesa={Number(mesa[1])} />;
+  return null;
+}
+
 function App() {
+  const page = publicPage();
+  if (page) {
+    return <Suspense fallback={<div className="min-h-screen bg-[#faf7f2]" />}>{page}</Suspense>;
+  }
   return (
     <AuthProvider>
       <Gate />

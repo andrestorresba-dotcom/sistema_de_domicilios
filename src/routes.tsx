@@ -12,6 +12,8 @@ import { Inventory } from "./components/pos/Inventory";
 import { PointOfSale } from "./components/pos/PointOfSale";
 import { CashClose } from "./components/pos/CashClose";
 import { Users } from "./components/pos/Users";
+import { MenuDia } from "./components/carta/MenuDia";
+import { PedidosWeb } from "./components/pedidos/PedidosWeb";
 
 export const router = createBrowserRouter([
   {
@@ -30,6 +32,8 @@ export const router = createBrowserRouter([
       { path: "pos", Component: PointOfSale },
       { path: "cierre-caja", Component: CashClose },
       { path: "usuarios", Component: Users },
+      { path: "menu", Component: MenuDia },
+      { path: "pedidos-web", Component: PedidosWeb },
     ],
   },
 ]);

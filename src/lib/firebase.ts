@@ -19,19 +19,22 @@ export const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Para probar en local sin tocar los datos reales: VITE_USE_EMULATORS=true npm run dev
-// (con `firebase emulators:start --only auth,firestore` corriendo)
+// Para probar en local sin tocar los datos reales: npm run local
+// (levanta los emuladores de Firebase y la app; también se abre desde el celular en la misma red wifi)
 export const USE_EMULATORS = import.meta.env.VITE_USE_EMULATORS === "true";
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
+// Los emuladores corren en el mismo computador que sirve la app (así funciona también desde el celular)
+const EMULATOR_HOST = typeof window !== "undefined" ? window.location.hostname : "127.0.0.1";
+
 export function connectAuthIfEmulator(a: Auth) {
-  if (USE_EMULATORS) connectAuthEmulator(a, "http://127.0.0.1:9099", { disableWarnings: true });
+  if (USE_EMULATORS) connectAuthEmulator(a, `http://${EMULATOR_HOST}:9099`, { disableWarnings: true });
 }
 
 if (USE_EMULATORS) {
-  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectFirestoreEmulator(db, EMULATOR_HOST, 8080);
   connectAuthIfEmulator(auth);
 } else {
   getAnalytics(app);

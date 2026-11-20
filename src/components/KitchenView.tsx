@@ -66,6 +66,17 @@ export function KitchenView() {
                 <h3 className="font-semibold text-white mb-4">
                   {order.customerName}
                 </h3>
+                {order.origen === 'web' && (
+                  <div className="-mt-2 mb-4 text-sm text-gray-300 space-y-0.5">
+                    <span className="inline-block rounded-full bg-sky-500/20 text-sky-300 px-2.5 py-0.5 text-xs font-semibold">
+                      Pedido web · {order.tipoEntrega === 'recoger' ? 'Recoge en el local' : 'Domicilio'}
+                    </span>
+                    {order.tipoEntrega !== 'recoger' && <p>{order.address}</p>}
+                    <p>
+                      {order.phone} · {order.paymentMethod === 'transfer' ? 'Transferencia (pagada)' : 'Efectivo'}
+                    </p>
+                  </div>
+                )}
 
                 {/* Items */}
                 <div className="bg-gray-900 rounded-lg p-4 mb-4">

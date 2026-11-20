@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { tableStore, TableStatus } from '../lib/tableStore';
 import { TableOrderModal } from '../TableOrderModal';
+import { MesaRequests } from './pedidos/PedidosWeb';
+import { useActiveWebOrders, useLlamadas } from '../lib/webOrders';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, query, where, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore'; 
 
@@ -11,6 +13,12 @@ export function TableView() {
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
 
   // Lo último que envió el lector, para ver en pantalla si está leyendo bien
+  const webOrders = useActiveWebOrders();
+  const llamadas = useLlamadas();
+  const alertTables = new Set<number>([
+    ...webOrders.filter(o => o.status === 'por-aceptar' && o.mesa).map(o => o.mesa as number),
+    ...llamadas.map(l => l.mesa),
+  ]);
   const [lastScan, setLastScan] = useState<{ code: string; enter: boolean; at: number } | null>(null);
 
   // 🎯 EFECTO 1: Escuchar el lector de códigos de barras
@@ -264,6 +272,8 @@ export function TableView() {
         </div>
       </div>
 
+      <MesaRequests />
+
       <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <h3 className="font-semibold text-gray-900">Mesas Ocupadas</h3>
@@ -292,8 +302,11 @@ export function TableView() {
               <div
                 key={tableNumber}
                 onClick={() => setSelectedTable(tableNumber)}
-                className={`aspect-square rounded-lg border-2 p-3 cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 ${getTableStatusColor(status)}`}
+                className={`relative aspect-square rounded-lg border-2 p-3 cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 ${getTableStatusColor(status)} ${alertTables.has(tableNumber) ? 'ring-4 ring-blue-400' : ''}`}
               >
+                {alertTables.has(tableNumber) && (
+                  <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-blue-600 text-white grid place-items-center text-xs font-bold shadow" aria-label="Pedido o llamada pendiente">!</span>
+                )}
                 <div className="h-full flex flex-col justify-between">
                   <div className="text-center">
                     <div className="font-bold text-lg">{tableNumber}</div>

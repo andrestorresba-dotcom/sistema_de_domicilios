@@ -30,6 +30,7 @@
     "@radix-ui/react-toggle": "^1.1.2",
     "@radix-ui/react-toggle-group": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.8",
+    "@types/qrcode": "^1.5.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "*",
     "cmdk": "^1.1.1",
@@ -38,6 +39,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "^0.487.0",
     "next-themes": "^0.4.6",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-barcode": "^1.6.1",
     "react-day-picker": "^8.10.1",
@@ -68,6 +70,7 @@
     "dev": "vite",
     "build": "vite build",
     "test:rules": "firebase emulators:exec --only firestore --project demo-asadero \"node tests/firestore.rules.test.mjs\"",
-    "dev:emuladores": "VITE_USE_EMULATORS=true vite"
+    "dev:emuladores": "VITE_USE_EMULATORS=true vite",
+    "local": "firebase emulators:exec --only auth,firestore --project demo-asadero \"VITE_USE_EMULATORS=true vite --host\""
   }
 }

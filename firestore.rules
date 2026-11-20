@@ -63,6 +63,11 @@ service cloud.firestore {
       allow read: if isActive();
       allow write: if isAdmin();
     }
+    // Configuración de la carta y corriente del día: pública para la carta digital.
+    match /config/carta {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     // Documentos que ya usaba la app (contador de pedidos, domiciliarios ocultos)
     match /config/counters {
       allow read, write: if isActive();
@@ -95,7 +100,8 @@ service cloud.firestore {
     // Inventario compartido (pollo entero en cuartos): solo el admin lo ajusta;
     // una venta solo puede descontar exactamente lo que registra en insumoQty.
     match /insumos/{insumoId} {
-      allow read: if isActive();
+      // El stock de pollo es público para marcar "agotado" en la carta digital.
+      allow read: if isActive() || insumoId == 'POLLO';
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (isActive() && isInsumoSaleDecrement(insumoId));
     }
@@ -116,6 +122,18 @@ service cloud.firestore {
       allow read: if isActive();
       allow create: if isAdmin();
       allow update, delete: if false;
+    }
+
+    // ---------- Carta digital ----------
+    // Cualquiera la lee (clientes); solo el admin crea, edita y borra platos.
+    // Cualquier usuario activo puede marcar un plato disponible / agotado.
+    match /carta/{itemId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isActive()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['available'])
+            && request.resource.data.available is bool);
     }
 
     // ---------- Ventas POS (facturas) ----------
@@ -148,6 +166,78 @@ service cloud.firestore {
         && request.resource.data.amount > 0
         && cajaOpen(request.resource.data.cajaId);
       allow update, delete: if isAdmin();
+    }
+
+    // ---------- Pedidos de clientes (QR de mesa y link de domicilios) ----------
+    // El cliente (sin sesión) crea su pedido y lo consulta por su id; el personal lo gestiona.
+    // El cliente nunca pone el valor del domicilio, y los precios se recalculan con la carta
+    // cuando el personal pasa el pedido a mesas o a cocina.
+    function shortStr(v, min, max) {
+      return v is string && v.size() >= min && v.size() <= max;
+    }
+    function validCliente(c, conDireccion) {
+      return c is map
+        && c.keys().hasOnly(['nombre', 'telefono', 'direccion', 'barrio', 'notas'])
+        && shortStr(c.nombre, 1, 80)
+        && shortStr(c.telefono, 7, 15)
+        && (!('notas' in c) || shortStr(c.notas, 0, 300))
+        && (conDireccion
+              ? shortStr(c.direccion, 3, 150) && shortStr(c.barrio, 1, 80)
+              : !('direccion' in c) && !('barrio' in c));
+    }
+    function validWebBase(d) {
+      return d.createdAt == request.time
+        && d.items is list && d.items.size() > 0 && d.items.size() <= 40
+        && d.subtotal is number && d.subtotal >= 0 && d.subtotal <= 5000000;
+    }
+    function validWebCreate() {
+      let d = request.resource.data;
+      return validWebBase(d) && (
+        (d.tipo == 'mesa'
+          && d.keys().hasOnly(['tipo', 'status', 'mesa', 'items', 'subtotal', 'createdAt'])
+          && d.status == 'por-aceptar'
+          && d.mesa is int && d.mesa >= 1 && d.mesa <= 42)
+        || (d.tipo == 'domicilio'
+          && d.keys().hasOnly(['tipo', 'status', 'cliente', 'pago', 'items', 'subtotal', 'createdAt'])
+          && d.status == 'por-confirmar'
+          && d.pago in ['efectivo', 'transferencia']
+          && validCliente(d.cliente, true))
+        || (d.tipo == 'recoger'
+          && d.keys().hasOnly(['tipo', 'status', 'cliente', 'pago', 'items', 'subtotal', 'deliveryFee', 'total', 'zone', 'createdAt'])
+          && ((d.pago == 'efectivo' && d.status == 'confirmado') || (d.pago == 'transferencia' && d.status == 'esperando-pago'))
+          && d.deliveryFee == 0 && d.total == d.subtotal && shortStr(d.zone, 1, 40)
+          && validCliente(d.cliente, false))
+      );
+    }
+    // Lo único que el cliente puede cambiar: aceptar el total del domicilio o cancelar.
+    function clientTransition() {
+      let after = request.resource.data;
+      return resource.data.status == 'por-aceptar-cliente'
+        && after.diff(resource.data).affectedKeys().hasOnly(['status', 'pago'])
+        && ((after.status == 'confirmado' && after.pago == 'efectivo')
+            || (after.status == 'esperando-pago' && after.pago == 'transferencia')
+            || (after.status == 'cancelado' && after.pago == resource.data.pago));
+    }
+    match /pedidos_web/{id} {
+      allow get: if true;
+      allow list: if isActive();
+      allow create: if validWebCreate();
+      allow update: if isActive() || clientTransition();
+      allow delete: if isAdmin();
+    }
+
+    // Botón "Llamar al mesero" del QR de la mesa (máximo una llamada cada 20 segundos por mesa)
+    match /llamadas/{mesaId} {
+      allow read, delete: if isActive();
+      allow create: if validLlamada(mesaId);
+      allow update: if validLlamada(mesaId) && request.time > resource.data.at + duration.value(20, 's');
+    }
+    function validLlamada(mesaId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['mesa', 'at'])
+        && d.mesa is int && d.mesa >= 1 && d.mesa <= 42
+        && string(d.mesa) == mesaId
+        && d.at == request.time;
     }
 
     // ---------- Módulos existentes (pedidos, mesas, ventas de mesas) ----------
